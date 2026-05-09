@@ -49,10 +49,17 @@ public sealed class LocalEntryRepository : IEntryRepository
         else file.Entries.Add(entry);
         file.UltimaModifica = DateTimeOffset.UtcNow;
         await _storage.SetItemAsync(Key(year), file);
+
+        // Se l'entry è stata spostata da un altro anno (idx<0 nel file di destinazione)
+        // rimuovi i duplicati negli altri year files. Allinea LocalEntryRepository
+        // alla logica già presente in OneDriveEntryRepository.SaveAsync.
+        if (idx < 0)
+            await RemoveFromOtherYearsAsync(entry.Id, year);
     }
 
     public async Task SaveManyAsync(IEnumerable<Entry> entries)
     {
+        var addedToYear = new List<(Guid id, int year)>();
         foreach (var byYear in entries.GroupBy(e => e.DataRegistrazione.Year))
         {
             var year = byYear.Key;
@@ -60,11 +67,43 @@ public sealed class LocalEntryRepository : IEntryRepository
             foreach (var entry in byYear)
             {
                 var idx = file.Entries.FindIndex(e => e.Id == entry.Id);
-                if (idx >= 0) file.Entries[idx] = entry;
-                else file.Entries.Add(entry);
+                if (idx >= 0)
+                {
+                    file.Entries[idx] = entry;
+                }
+                else
+                {
+                    file.Entries.Add(entry);
+                    addedToYear.Add((entry.Id, year));
+                }
             }
             file.UltimaModifica = DateTimeOffset.UtcNow;
             await _storage.SetItemAsync(Key(year), file);
+        }
+        foreach (var (id, year) in addedToYear)
+            await RemoveFromOtherYearsAsync(id, year);
+    }
+
+    private async Task RemoveFromOtherYearsAsync(Guid id, int currentYear)
+    {
+        var keys = await _storage.KeysAsync();
+        var currentKey = Key(currentYear);
+        foreach (var k in keys.Where(k => k.StartsWith(KeyPrefix, StringComparison.Ordinal)).ToList())
+        {
+            if (string.Equals(k, currentKey, StringComparison.Ordinal)) continue;
+            var file = await _storage.GetItemAsync<EntryYearFile>(k);
+            if (file?.Entries is null) continue;
+            var removed = file.Entries.RemoveAll(e => e.Id == id);
+            if (removed == 0) continue;
+            if (file.Entries.Count == 0)
+            {
+                await _storage.RemoveItemAsync(k);
+            }
+            else
+            {
+                file.UltimaModifica = DateTimeOffset.UtcNow;
+                await _storage.SetItemAsync(k, file);
+            }
         }
     }
 

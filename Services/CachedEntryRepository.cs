@@ -19,6 +19,11 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
     private readonly OnlineStatusService _online;
 
     private readonly SemaphoreSlim _drainLock = new(1, 1);
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
+    // Throttle del background refresh: evita loop "DataChanged → reload pagina → GetAllAsync → refresh → DataChanged".
+    private static readonly TimeSpan MinBackgroundRefreshInterval = TimeSpan.FromSeconds(8);
+    private DateTimeOffset _lastBackgroundRefresh = DateTimeOffset.MinValue;
 
     public CachedEntryRepository(
         LocalEntryRepository local,
@@ -68,7 +73,9 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
         await _local.ClearAsync();
         await _pending.ClearAsync();
         await UpdatePendingCountAsync();
-        await RefreshAllFromRemoteAsync();
+        // dopo il clear locale qualunque dato remoto è "novità" → forza notify
+        _lastBackgroundRefresh = DateTimeOffset.MinValue;
+        await RefreshAllFromRemoteAsync(forced: true);
         _state.NotifySynced();
         _state.NotifyDataChanged();
     }
@@ -78,18 +85,21 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
     public async Task<IReadOnlyList<Entry>> GetAllAsync()
     {
         var local = await _local.GetAllAsync();
-        if (_online.IsOnline)
-            _ = RefreshAllFromRemoteAsync();
+        if (_online.IsOnline && CanStartBackgroundRefresh())
+            _ = RefreshAllFromRemoteAsync(forced: false);
         return local;
     }
 
     public async Task<IReadOnlyList<Entry>> GetByYearAsync(int year)
     {
         var local = await _local.GetByYearAsync(year);
-        if (_online.IsOnline)
-            _ = RefreshYearFromRemoteAsync(year);
+        if (_online.IsOnline && CanStartBackgroundRefresh())
+            _ = RefreshYearFromRemoteAsync(year, forced: false);
         return local;
     }
+
+    private bool CanStartBackgroundRefresh()
+        => DateTimeOffset.UtcNow - _lastBackgroundRefresh >= MinBackgroundRefreshInterval;
 
     public Task<Entry?> GetByIdAsync(Guid id) => _local.GetByIdAsync(id);
 
@@ -217,7 +227,7 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
             _state.NotifySynced();
 
             // 3) refresh dei dati da remote (best-effort, non blocca)
-            await RefreshAllFromRemoteAsync();
+            await RefreshAllFromRemoteAsync(forced: true);
         }
         finally
         {
@@ -227,37 +237,59 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
 
     // ---------- Internal: refresh remote → local ----------
 
-    private async Task RefreshAllFromRemoteAsync()
+    private async Task RefreshAllFromRemoteAsync(bool forced)
     {
+        // Solo un refresh alla volta: se ce n'è uno in corso, esci subito.
+        if (!await _refreshLock.WaitAsync(0)) return;
         try
         {
             var remote = await _remote.GetAllAsync();
             var byYear = remote.GroupBy(e => e.DataRegistrazione.Year);
+            var anyChanged = false;
             foreach (var grp in byYear)
-                await ApplyRemoteToYearAsync(grp.Key, grp.ToList());
-            _state.NotifyDataChanged();
+            {
+                if (await ApplyRemoteToYearAsync(grp.Key, grp.ToList()))
+                    anyChanged = true;
+            }
+            _lastBackgroundRefresh = DateTimeOffset.UtcNow;
+            if (anyChanged) _state.NotifyDataChanged();
         }
         catch (Exception ex)
         {
             _state.SetStatus(SyncStatus.Error, Truncate(ex.Message));
         }
+        finally
+        {
+            _refreshLock.Release();
+        }
     }
 
-    private async Task RefreshYearFromRemoteAsync(int year)
+    private async Task RefreshYearFromRemoteAsync(int year, bool forced)
     {
+        if (!await _refreshLock.WaitAsync(0)) return;
         try
         {
             var remote = await _remote.GetByYearAsync(year);
-            await ApplyRemoteToYearAsync(year, remote.ToList());
-            _state.NotifyDataChanged();
+            var changed = await ApplyRemoteToYearAsync(year, remote.ToList());
+            _lastBackgroundRefresh = DateTimeOffset.UtcNow;
+            if (changed) _state.NotifyDataChanged();
         }
         catch (Exception ex)
         {
             _state.SetStatus(SyncStatus.Error, Truncate(ex.Message));
         }
+        finally
+        {
+            _refreshLock.Release();
+        }
     }
 
-    private async Task ApplyRemoteToYearAsync(int year, List<Entry> remoteEntries)
+    /// <summary>
+    /// Applica gli entry del remoto al year file locale tenendo gli entry pending.
+    /// Ritorna true se la cache locale è effettivamente cambiata, false altrimenti
+    /// (per evitare DataChanged spuri che ri-triggherebbero le pagine).
+    /// </summary>
+    private async Task<bool> ApplyRemoteToYearAsync(int year, List<Entry> remoteEntries)
     {
         var local = await _local.GetByYearAsync(year);
         var pendingIds = await _pending.GetPendingSyncIdsAsync();
@@ -286,7 +318,25 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
             merged.Add(re);
         }
 
+        if (AreSameEntries(local, merged))
+            return false;
+
         await _local.ReplaceYearAsync(year, merged);
+        return true;
+    }
+
+    /// <summary>
+    /// Confronto leggero: stesso numero di entry e stessa coppia (Id, LastModified).
+    /// Sufficient per evitare DataChanged spuri quando il remoto non ha portato novità.
+    /// </summary>
+    private static bool AreSameEntries(IReadOnlyList<Entry> a, IReadOnlyList<Entry> b)
+    {
+        if (a.Count != b.Count) return false;
+        var byId = a.ToDictionary(e => e.Id, e => e.LastModified);
+        foreach (var e in b)
+            if (!byId.TryGetValue(e.Id, out var lm) || lm != e.LastModified)
+                return false;
+        return true;
     }
 
     private async Task UpdatePendingCountAsync()
@@ -302,6 +352,7 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
     {
         _online.OnlineChanged -= OnOnlineChanged;
         _drainLock.Dispose();
+        _refreshLock.Dispose();
         return ValueTask.CompletedTask;
     }
 }

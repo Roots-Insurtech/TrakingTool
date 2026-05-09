@@ -44,14 +44,8 @@
         </MudItem>
     </MudGrid>
 
-    <MudGrid>
-        <MudItem xs="12" md="6">
-            @RenderList("In corso", "Riprendi da dove avevi lasciato.", _inCorso, Stato.InCorso)
-        </MudItem>
-        <MudItem xs="12" md="6">
-            @RenderList("Aperte", "Da prendere in carico.", _aperte, Stato.Aperta)
-        </MudItem>
-    </MudGrid>
+    @RenderList("In corso", "Riprendi da dove avevi lasciato.", _inCorso, Stato.InCorso)
+    @RenderList("Aperte", "Da prendere in carico.", _aperte, Stato.Aperta)
 </MudStack>
 
 @code {
