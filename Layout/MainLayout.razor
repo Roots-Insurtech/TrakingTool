@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@inject TrakingTool.Services.OnlineStatusService OnlineStatus
+@inject TrakingTool.Services.CachedEntryRepository Repo
 
 <MudLayout>
     <MudAppBar Elevation="0" Dense="true" Class="tt-appbar">
@@ -9,6 +11,7 @@
             <span class="tt-appbar-title">TrakingTool</span>
         </MudLink>
         <MudSpacer />
+        <SyncIndicator />
         <LoginDisplay />
     </MudAppBar>
 
@@ -25,6 +28,15 @@
 
 @code {
     private bool _drawerOpen = true;
+    private bool _initialized;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _initialized) return;
+        _initialized = true;
+        await OnlineStatus.InitializeAsync();
+        await Repo.InitializeAsync();
+    }
 }

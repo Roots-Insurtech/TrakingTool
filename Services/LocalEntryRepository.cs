@@ -84,4 +84,18 @@ public sealed class LocalEntryRepository : IEntryRepository
             }
         }
     }
+
+    /// <summary>
+    /// Sostituisce integralmente il contenuto di un anno (usato dal merge dopo refresh remoto).
+    /// </summary>
+    public async Task ReplaceYearAsync(int year, IEnumerable<Entry> entries)
+    {
+        var file = new EntryYearFile
+        {
+            Anno = year,
+            Entries = entries.ToList(),
+            UltimaModifica = DateTimeOffset.UtcNow
+        };
+        await _storage.SetItemAsync(Key(year), file);
+    }
 }

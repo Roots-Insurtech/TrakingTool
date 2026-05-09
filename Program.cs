@@ -38,6 +38,11 @@ builder.Services.AddMudServices(config =>
 builder.Services.AddBlazoredLocalStorage();
 
 builder.Services.AddScoped<LocalEntryRepository>();
-builder.Services.AddScoped<IEntryRepository, OneDriveEntryRepository>();
+builder.Services.AddScoped<OneDriveEntryRepository>();
+builder.Services.AddScoped<PendingSyncStore>();
+builder.Services.AddScoped<SyncStateService>();
+builder.Services.AddScoped<OnlineStatusService>();
+builder.Services.AddScoped<IEntryRepository, CachedEntryRepository>();
+builder.Services.AddScoped(sp => (CachedEntryRepository)sp.GetRequiredService<IEntryRepository>());
 
 await builder.Build().RunAsync();

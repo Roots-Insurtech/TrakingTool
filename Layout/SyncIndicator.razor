@@ -1,0 +1,69 @@
+@using TrakingTool.Services
+@implements IDisposable
+@inject SyncStateService State
+@inject CachedEntryRepository Repo
+
+<MudTooltip Text="@TooltipText" Placement="Placement.Bottom" Arrow="true">
+    <MudIconButton Icon="@CurrentIcon"
+                   Color="@CurrentColor"
+                   Size="Size.Small"
+                   OnClick="ForceSync"
+                   Class="tt-sync-icon"
+                   aria-label="Stato sincronizzazione" />
+</MudTooltip>
+@if (State.PendingCount > 0)
+{
+    <span class="tt-sync-pending">@State.PendingCount</span>
+}
+
+@code {
+    protected override void OnInitialized() => State.StateChanged += OnStateChanged;
+
+    private async void OnStateChanged() => await InvokeAsync(StateHasChanged);
+
+    private string CurrentIcon => State.Status switch
+    {
+        SyncStatus.Syncing => Icons.Material.Outlined.Sync,
+        SyncStatus.Offline => Icons.Material.Outlined.CloudOff,
+        SyncStatus.Error => Icons.Material.Outlined.SyncProblem,
+        _ => Icons.Material.Outlined.CloudDone
+    };
+
+    private Color CurrentColor => State.Status switch
+    {
+        SyncStatus.Syncing => Color.Info,
+        SyncStatus.Offline => Color.Warning,
+        SyncStatus.Error => Color.Error,
+        _ => Color.Success
+    };
+
+    private string TooltipText
+    {
+        get
+        {
+            var pending = State.PendingCount > 0 ? $" · {State.PendingCount} in coda" : "";
+            return State.Status switch
+            {
+                SyncStatus.Syncing => "Sincronizzazione…" + pending,
+                SyncStatus.Offline => "Offline" + pending,
+                SyncStatus.Error => $"Errore: {State.LastError ?? "ignoto"}" + pending,
+                _ when State.LastSyncedAt.HasValue => $"Sincronizzato {FormatRelative(State.LastSyncedAt.Value)}",
+                _ => "Sincronizzato"
+            };
+        }
+    }
+
+    private static string FormatRelative(DateTimeOffset when)
+    {
+        var diff = DateTimeOffset.UtcNow - when;
+        if (diff.TotalSeconds < 30) return "ora";
+        if (diff.TotalMinutes < 1) return $"{(int)diff.TotalSeconds}s fa";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m fa";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h fa";
+        return when.LocalDateTime.ToString("dd/MM HH:mm");
+    }
+
+    private Task ForceSync() => Repo.SyncNowAsync();
+
+    public void Dispose() => State.StateChanged -= OnStateChanged;
+}
