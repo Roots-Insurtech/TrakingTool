@@ -24,3 +24,7 @@ appsettings.Local.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Working folder for sharing screenshots/notes with the assistant
+Claude Images/
+memory/

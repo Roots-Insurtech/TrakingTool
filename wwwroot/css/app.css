@@ -35,6 +35,24 @@ html, body {
 .tt-appbar-title {
     letter-spacing: 0.2px;
     font-weight: 600;
+    font-size: 0.875rem;
+}
+.tt-appbar-brand {
+    color: #e6e6e6;
+    gap: 8px;
+    user-select: none;
+}
+.tt-appbar-logo {
+    color: #e6e6e6;
+    transition: color 120ms ease;
+}
+.tt-appbar-brand:hover .tt-appbar-logo {
+    color: #f1c08e;
+}
+.tt-appbar-divider {
+    color: #5a5a5a;
+    font-weight: 400;
+    margin: 0 2px;
 }
 .tt-drawer {
     border-right: 1px solid #222 !important;
@@ -89,6 +107,12 @@ html, body {
     justify-content: center;
     height: 100vh;
     gap: 14px;
+}
+.tt-boot-logo {
+    height: 40px;
+    width: auto;
+    color: #e6e6e6;
+    margin-bottom: 4px;
 }
 .tt-boot-spinner {
     width: 28px;

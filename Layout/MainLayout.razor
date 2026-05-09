@@ -3,7 +3,11 @@
 <MudLayout>
     <MudAppBar Elevation="0" Dense="true" Class="tt-appbar">
         <MudIconButton Icon="@Icons.Material.Outlined.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
-        <MudText Typo="Typo.subtitle1" Class="ml-2 tt-appbar-title">TrakingTool</MudText>
+        <MudLink Href="" Underline="Underline.None" Color="Color.Inherit" Class="ml-2 tt-appbar-brand d-flex align-center">
+            <BrandLogo Height="22" CssClass="tt-appbar-logo" />
+            <span class="tt-appbar-divider">·</span>
+            <span class="tt-appbar-title">TrakingTool</span>
+        </MudLink>
         <MudSpacer />
         <LoginDisplay />
     </MudAppBar>
