@@ -108,15 +108,22 @@
             }
             else
             {
-                <MudList T="Entry" Dense="true" Class="pa-0">
+                <MudList T="Entry" Dense="true" Class="pa-0 tt-home-list">
                     @foreach (var e in items)
                     {
                         <MudListItem T="Entry" OnClick="@(() => Nav.NavigateTo($"entries?id={e.Id}"))">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
-                                <MudText Typo="Typo.body2" Style="min-width: 130px;" Class="mud-text-secondary text-truncate">@e.Cliente</MudText>
-                                <MudText Typo="Typo.body2" Style="min-width: 140px;" Class="text-truncate">@e.Area</MudText>
-                                <MudText Typo="Typo.body2" Class="mud-text-secondary text-truncate" Style="flex:1;">@FirstLine(e.Descrizione)</MudText>
-                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@e.DataRegistrazione.ToString("dd/MM")</MudText>
+                            <MudStack Spacing="0" Class="tt-home-list-item">
+                                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                                    <MudText Typo="Typo.body2" Class="text-truncate" Style="flex: 1; min-width: 0;">
+                                        <strong>@(string.IsNullOrEmpty(e.Cliente) ? "—" : e.Cliente)</strong>
+                                        <span class="mud-text-secondary"> · @(string.IsNullOrEmpty(e.Area) ? "—" : e.Area)</span>
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="flex-shrink: 0;">@e.DataRegistrazione.ToString("dd/MM")</MudText>
+                                </MudStack>
+                                @if (!string.IsNullOrWhiteSpace(e.Descrizione))
+                                {
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary text-truncate" Style="max-width: 100%;">@FirstLine(e.Descrizione)</MudText>
+                                }
                             </MudStack>
                         </MudListItem>
                     }

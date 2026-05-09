@@ -93,6 +93,30 @@ html, body {
 .tt-main {
     background: #191919;
 }
+.tt-page-container {
+    padding-top: 24px;
+    padding-bottom: 24px;
+}
+
+/* Mobile tweaks — sotto i 600px: niente subtitle TrakingTool, padding stretti */
+@media (max-width: 600px) {
+    .tt-appbar-divider,
+    .tt-appbar-title {
+        display: none;
+    }
+    .tt-page-container {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+        padding-top: 14px !important;
+        padding-bottom: 14px !important;
+    }
+    .tt-stat-card .mud-typography-h4 {
+        font-size: 1.5rem !important;
+    }
+    .tt-stat-card.pa-4 {
+        padding: 12px !important;
+    }
+}
 
 /* Card rifinita */
 .tt-card {
@@ -114,6 +138,15 @@ html, body {
 }
 .tt-stat-card:active {
     transform: scale(0.99);
+}
+
+/* Liste in Home: item compatto su 2 righe (cliente·area + descrizione) */
+.tt-home-list .mud-list-item-text {
+    margin: 0;
+}
+.tt-home-list-item {
+    width: 100%;
+    min-width: 0;
 }
 
 /* Stato chip colors */

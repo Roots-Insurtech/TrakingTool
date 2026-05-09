@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject TrakingTool.Services.OnlineStatusService OnlineStatus
 @inject TrakingTool.Services.CachedEntryRepository Repo
+@inject MudBlazor.IBrowserViewportService Viewport
 
 <MudLayout>
     <MudAppBar Elevation="0" Dense="true" Class="tt-appbar">
@@ -15,12 +16,17 @@
         <LoginDisplay />
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Mini" OpenMiniOnHover="true" ClipMode="DrawerClipMode.Always" Class="tt-drawer">
+    <MudDrawer @bind-Open="_drawerOpen"
+               Elevation="0"
+               Variant="@(_isMobile ? DrawerVariant.Temporary : DrawerVariant.Mini)"
+               OpenMiniOnHover="true"
+               ClipMode="DrawerClipMode.Always"
+               Class="tt-drawer">
         <NavMenu />
     </MudDrawer>
 
     <MudMainContent Class="tt-main">
-        <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+        <MudContainer MaxWidth="MaxWidth.Large" Class="tt-page-container">
             @Body
         </MudContainer>
     </MudMainContent>
@@ -28,6 +34,7 @@
 
 @code {
     private bool _drawerOpen = true;
+    private bool _isMobile;
     private bool _initialized;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
@@ -36,7 +43,19 @@
     {
         if (!firstRender || _initialized) return;
         _initialized = true;
+
+        // Adatta drawer/layout al breakpoint corrente: su mobile il drawer
+        // diventa Temporary (overlay) e parte chiuso per non rubare spazio.
+        try
+        {
+            var bp = await Viewport.GetCurrentBreakpointAsync();
+            _isMobile = bp <= Breakpoint.Sm;
+            if (_isMobile) _drawerOpen = false;
+        }
+        catch { /* fallback: layout desktop */ }
+
         await OnlineStatus.InitializeAsync();
         await Repo.InitializeAsync();
+        StateHasChanged();
     }
 }
