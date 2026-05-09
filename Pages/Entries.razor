@@ -1,0 +1,177 @@
+@page "/entries"
+@inject IEntryRepository Repo
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>TrakingTool — Attività</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h4">Attività</MudText>
+        <MudStack Row="true" Spacing="2">
+            <MudButton StartIcon="@Icons.Material.Outlined.UploadFile" Variant="Variant.Outlined" OnClick="@(() => Nav.NavigateTo("import"))">
+                Importa
+            </MudButton>
+            <MudButton StartIcon="@Icons.Material.Outlined.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">
+                Nuova
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    <MudPaper Class="tt-card pa-3">
+        <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="_search" Placeholder="Cerca cliente, area, testo…" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Immediate="true" Style="max-width: 360px;" />
+            <MudSelect T="Stato?" @bind-Value="_statoFilter" Placeholder="Tutti gli stati" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Style="max-width: 200px;">
+                @foreach (var s in Enum.GetValues<Stato>())
+                {
+                    <MudSelectItem T="Stato?" Value="@(s)">@s.ToLabel()</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSpacer />
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">@_filtered.Count / @_all.Count</MudText>
+        </MudStack>
+    </MudPaper>
+
+    <MudPaper Class="tt-card">
+        <MudTable T="Entry" Items="_filtered" Hover="true" Dense="true" Striped="false" Breakpoint="Breakpoint.Sm" Class="pa-0" RowClass="cursor-pointer" OnRowClick="@OnRowClick">
+            <HeaderContent>
+                <MudTh Style="width: 110px;">Stato</MudTh>
+                <MudTh>Cliente</MudTh>
+                <MudTh>Area</MudTh>
+                <MudTh>Descrizione</MudTh>
+                <MudTh Style="width: 110px;">Registrata</MudTh>
+                <MudTh Style="width: 110px;">Rilasciata</MudTh>
+                <MudTh Style="width: 56px;"></MudTh>
+            </HeaderContent>
+            <RowTemplate Context="e">
+                <MudTd><MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip></MudTd>
+                <MudTd>@e.Cliente</MudTd>
+                <MudTd>@e.Area</MudTd>
+                <MudTd Class="text-truncate" Style="max-width: 360px;">@FirstLine(e.Descrizione)</MudTd>
+                <MudTd>@e.DataRegistrazione.ToString("dd/MM/yyyy")</MudTd>
+                <MudTd>@(e.DataRilascio?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
+                <MudTd>
+                    <span @onclick:stopPropagation="true">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="@(async () => await DeleteAsync(e))" />
+                    </span>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary py-6">Nessuna attività trovata.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+</MudStack>
+
+@code {
+    [SupplyParameterFromQuery(Name = "id")] public Guid? IdQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "new")] public string? NewQuery { get; set; }
+
+    private List<Entry> _all = new();
+    private string _search = string.Empty;
+    private Stato? _statoFilter;
+
+    private IReadOnlyList<Entry> _filtered =>
+        _all.Where(e =>
+                (!_statoFilter.HasValue || e.Stato == _statoFilter.Value) &&
+                (string.IsNullOrWhiteSpace(_search) ||
+                 e.Cliente.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                 e.Area.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                 e.Descrizione.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(e => e.DataRegistrazione)
+            .ThenByDescending(e => e.Id)
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+
+        if (NewQuery == "1")
+            await OpenCreate();
+        else if (IdQuery is { } id)
+        {
+            var entry = _all.FirstOrDefault(e => e.Id == id);
+            if (entry is not null) await OpenEdit(entry);
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _all = (await Repo.GetAllAsync()).ToList();
+        StateHasChanged();
+    }
+
+    private async Task OpenCreate()
+    {
+        var entry = new Entry { DataRegistrazione = DateOnly.FromDateTime(DateTime.Today) };
+        await ShowDialog(entry, isNew: true);
+    }
+
+    private async Task OpenEdit(Entry entry)
+    {
+        var copy = new Entry
+        {
+            Id = entry.Id,
+            Cliente = entry.Cliente,
+            Area = entry.Area,
+            Stato = entry.Stato,
+            Descrizione = entry.Descrizione,
+            DataRegistrazione = entry.DataRegistrazione,
+            DataRilascio = entry.DataRilascio
+        };
+        await ShowDialog(copy, isNew: false);
+    }
+
+    private async Task ShowDialog(Entry entry, bool isNew)
+    {
+        var clienti = _all.Select(e => e.Cliente).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToArray();
+        var aree = _all.Select(e => e.Area).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToArray();
+
+        var parameters = new DialogParameters
+        {
+            ["Entry"] = entry,
+            ["IsNew"] = isNew,
+            ["ClientiSuggeriti"] = clienti,
+            ["AreeSuggerite"] = aree
+        };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<EntryDialog>(isNew ? "Nuova attività" : "Modifica attività", parameters, options);
+        var result = await dlg.Result;
+        if (result is not null && !result.Canceled && result.Data is Entry saved)
+        {
+            await Repo.SaveAsync(saved);
+            Snackbar.Add(isNew ? "Attività creata." : "Modifiche salvate.", Severity.Success);
+            await ReloadAsync();
+        }
+    }
+
+    private async Task OnRowClick(TableRowClickEventArgs<Entry> args)
+    {
+        if (args.Item is not null) await OpenEdit(args.Item);
+    }
+
+    private async Task DeleteAsync(Entry entry)
+    {
+        var confirm = await Dialog.ShowMessageBoxAsync(new MessageBoxOptions
+        {
+            Title = "Eliminare attività?",
+            Message = $"\"{(string.IsNullOrEmpty(entry.Area) ? entry.Cliente : entry.Area)}\" verrà rimossa.",
+            YesText = "Elimina",
+            CancelText = "Annulla"
+        });
+        if (confirm == true)
+        {
+            await Repo.DeleteAsync(entry.Id);
+            Snackbar.Add("Attività eliminata.", Severity.Normal);
+            await ReloadAsync();
+        }
+    }
+
+    private static string FirstLine(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+        var nl = s.IndexOf('\n');
+        return nl > 0 ? s[..nl] : s;
+    }
+}

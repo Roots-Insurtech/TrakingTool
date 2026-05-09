@@ -1,0 +1,99 @@
+@inherits ComponentBase
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudStack Row="true" Spacing="3">
+                <MudAutocomplete T="string"
+                                 Label="Cliente"
+                                 @bind-Value="Entry.Cliente"
+                                 SearchFunc="SearchClienti"
+                                 CoerceText="false"
+                                 CoerceValue="true"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Required="true"
+                                 RequiredError="Cliente obbligatorio"
+                                 Class="flex-grow-1" />
+                <MudAutocomplete T="string"
+                                 Label="Area"
+                                 @bind-Value="Entry.Area"
+                                 SearchFunc="SearchAree"
+                                 CoerceText="false"
+                                 CoerceValue="true"
+                                 Variant="Variant.Outlined"
+                                 Margin="Margin.Dense"
+                                 Required="true"
+                                 RequiredError="Area obbligatoria"
+                                 Class="flex-grow-1" />
+            </MudStack>
+
+            <MudSelect T="Stato" @bind-Value="Entry.Stato" Label="Stato" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var s in Enum.GetValues<Stato>())
+                {
+                    <MudSelectItem T="Stato" Value="@s">@s.ToLabel()</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudTextField T="string" @bind-Value="Entry.Descrizione" Label="Descrizione" Variant="Variant.Outlined" Lines="6" Margin="Margin.Dense" />
+
+            <MudStack Row="true" Spacing="3">
+                <MudDatePicker Label="Data registrazione" Date="@_dataRegistrazione" DateChanged="OnDataRegistrazioneChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Class="flex-grow-1" />
+                <MudDatePicker Label="Data rilascio" Date="@_dataRilascio" DateChanged="OnDataRilascioChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Class="flex-grow-1" />
+            </MudStack>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Annulla</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@(IsNew ? "Crea" : "Salva")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Entry Entry { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public string[] ClientiSuggeriti { get; set; } = Array.Empty<string>();
+    [Parameter] public string[] AreeSuggerite { get; set; } = Array.Empty<string>();
+
+    private DateTime? _dataRegistrazione;
+    private DateTime? _dataRilascio;
+
+    protected override void OnInitialized()
+    {
+        _dataRegistrazione = Entry.DataRegistrazione.ToDateTime(TimeOnly.MinValue);
+        _dataRilascio = Entry.DataRilascio?.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private void OnDataRegistrazioneChanged(DateTime? d)
+    {
+        _dataRegistrazione = d;
+        if (d.HasValue) Entry.DataRegistrazione = DateOnly.FromDateTime(d.Value);
+    }
+
+    private void OnDataRilascioChanged(DateTime? d)
+    {
+        _dataRilascio = d;
+        Entry.DataRilascio = d.HasValue ? DateOnly.FromDateTime(d.Value) : null;
+    }
+
+    private Task<IEnumerable<string>> SearchClienti(string value, CancellationToken _) =>
+        Task.FromResult(Filter(ClientiSuggeriti, value));
+
+    private Task<IEnumerable<string>> SearchAree(string value, CancellationToken _) =>
+        Task.FromResult(Filter(AreeSuggerite, value));
+
+    private static IEnumerable<string> Filter(string[] source, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return source;
+        return source.Where(s => s.Contains(value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(Entry.Cliente) || string.IsNullOrWhiteSpace(Entry.Area)) return;
+        MudDialog.Close(DialogResult.Ok(Entry));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

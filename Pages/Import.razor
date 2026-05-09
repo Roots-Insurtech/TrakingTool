@@ -1,0 +1,182 @@
+@page "/import"
+@inject IEntryRepository Repo
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>TrakingTool — Importa</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h4">Importa attività</MudText>
+        <MudButton OnClick="@(() => Nav.NavigateTo("entries"))" Variant="Variant.Text">← Torna alle attività</MudButton>
+    </MudStack>
+
+    <MudPaper Class="tt-card pa-4">
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Incolla righe da OneNote o da un foglio. I campi sono <b>Cliente</b>, <b>Area</b>, <b>Descrizione</b>, <b>Data registrazione</b>, <b>Data rilascio</b> (opzionale).
+                Date in formato <code>gg/mm/aaaa</code>. La modalità <b>Auto</b> riconosce sia i blocchi "un campo per riga" (paste da OneNote) sia il TSV.
+            </MudText>
+
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
+                <MudSelect T="ParseMode" Value="_mode" ValueChanged="OnModeChanged" Label="Modalità di parsing" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 420px;">
+                    @foreach (var m in Enum.GetValues<ParseMode>())
+                    {
+                        <MudSelectItem Value="@m">@m.ToLabel()</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="Stato" Value="_defaultStato" ValueChanged="OnDefaultStatoChanged" Label="Stato di default" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 220px;">
+                    @foreach (var s in Enum.GetValues<Stato>())
+                    {
+                        <MudSelectItem Value="@s">@s.ToLabel()</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSwitch T="bool" Value="_autoStatoRilasciata" ValueChanged="OnAutoStatoChanged" Color="Color.Primary" Label="Marca come Rilasciata se c'è data rilascio" />
+            </MudStack>
+
+            <MudTextField T="string" Value="_input" ValueChanged="OnInputChanged" Lines="14" Placeholder="Incolla qui (Ctrl+V)…" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Style="font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 12.5px;" />
+
+            @if (_mode == ParseMode.Auto && _parsed.Count > 0)
+            {
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Modalità rilevata: <b>@_modeUsed.ToLabel()</b>
+                </MudText>
+            }
+        </MudStack>
+    </MudPaper>
+
+    <MudPaper Class="tt-card pa-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+            <MudText Typo="Typo.h6">Anteprima</MudText>
+            <MudSpacer />
+            @if (_parsed.Count > 0)
+            {
+                <MudStack Row="true" Spacing="3">
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">@_parsed.Count(p => p.IsValid && !p.HasWarning) ok</MudChip>
+                    @if (_parsed.Any(p => p.IsValid && p.HasWarning))
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">@_parsed.Count(p => p.IsValid && p.HasWarning) con warning</MudChip>
+                    }
+                    @if (_parsed.Any(p => !p.IsValid))
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">@_parsed.Count(p => !p.IsValid) errori</MudChip>
+                    }
+                </MudStack>
+            }
+        </MudStack>
+
+        @if (_parsed.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary py-4">Niente da mostrare. Incolla il testo nel riquadro qui sopra.</MudText>
+        }
+        else
+        {
+            <MudTable Items="_parsed" Dense="true" Hover="true" Class="pa-0">
+                <HeaderContent>
+                    <MudTh Style="width:36px;"></MudTh>
+                    <MudTh Style="width:48px;">#</MudTh>
+                    <MudTh>Cliente</MudTh>
+                    <MudTh>Area</MudTh>
+                    <MudTh>Descrizione</MudTh>
+                    <MudTh Style="width:100px;">Registrata</MudTh>
+                    <MudTh Style="width:100px;">Rilasciata</MudTh>
+                    <MudTh Style="width:110px;">Stato</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="p">
+                    <MudTd>
+                        @if (!p.IsValid)
+                        {
+                            <MudTooltip Text="@string.Join("; ", p.Errors)"><MudIcon Icon="@Icons.Material.Outlined.Error" Color="Color.Error" Size="Size.Small" /></MudTooltip>
+                        }
+                        else if (p.HasWarning)
+                        {
+                            <MudTooltip Text="@string.Join("; ", p.Warnings)"><MudIcon Icon="@Icons.Material.Outlined.Warning" Color="Color.Warning" Size="Size.Small" /></MudTooltip>
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Outlined.CheckCircleOutline" Color="Color.Success" Size="Size.Small" />
+                        }
+                    </MudTd>
+                    <MudTd Class="mud-text-secondary">@p.LineNumber</MudTd>
+                    <MudTd>@p.Entry.Cliente</MudTd>
+                    <MudTd>@p.Entry.Area</MudTd>
+                    <MudTd Class="text-truncate" Style="max-width: 360px;">@FirstLine(p.Entry.Descrizione)</MudTd>
+                    <MudTd>@p.Entry.DataRegistrazione.ToString("dd/MM/yyyy")</MudTd>
+                    <MudTd>@(p.Entry.DataRilascio?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
+                    <MudTd><MudChip T="string" Size="Size.Small" Class="@p.Entry.Stato.ToCssClass()">@p.Entry.Stato.ToLabel()</MudChip></MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+
+    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+        <MudButton OnClick="@(() => Nav.NavigateTo("entries"))" Disabled="_importing">Annulla</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(_importing || _parsed.Count(p => p.IsValid) == 0)"
+                   StartIcon="@Icons.Material.Outlined.CloudUpload"
+                   OnClick="DoImport">
+            @if (_importing)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+            }
+            Importa @_parsed.Count(p => p.IsValid) attività
+        </MudButton>
+    </MudStack>
+</MudStack>
+
+@code {
+    private string _input = string.Empty;
+    private ParseMode _mode = ParseMode.Auto;
+    private ParseMode _modeUsed = ParseMode.Auto;
+    private Stato _defaultStato = Stato.Aperta;
+    private bool _autoStatoRilasciata = true;
+    private List<ParsedRow> _parsed = new();
+    private bool _importing;
+
+    private void OnInputChanged(string value) { _input = value; Reparse(); }
+    private void OnModeChanged(ParseMode value) { _mode = value; Reparse(); }
+    private void OnDefaultStatoChanged(Stato value) { _defaultStato = value; Reparse(); }
+    private void OnAutoStatoChanged(bool value) { _autoStatoRilasciata = value; Reparse(); }
+
+    private void Reparse()
+    {
+        var result = TsvParser.Parse(_input, _mode, _defaultStato);
+        _parsed = result.Rows;
+        _modeUsed = result.ModeUsed;
+
+        if (_autoStatoRilasciata)
+        {
+            foreach (var r in _parsed)
+                if (r.Entry.DataRilascio.HasValue && r.Entry.Stato == _defaultStato)
+                    r.Entry.Stato = Stato.Rilasciata;
+        }
+    }
+
+    private async Task DoImport()
+    {
+        var toImport = _parsed.Where(p => p.IsValid).Select(p => p.Entry).ToList();
+        if (toImport.Count == 0) return;
+        _importing = true;
+        try
+        {
+            await Repo.SaveManyAsync(toImport);
+            Snackbar.Add($"Importate {toImport.Count} attività.", Severity.Success);
+            Nav.NavigateTo("entries");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Errore durante l'import: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    private static string FirstLine(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+        var nl = s.IndexOf('\n');
+        return nl > 0 ? s[..nl] : s;
+    }
+}

@@ -1,0 +1,26 @@
+# Build / output
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.swp
+
+# Generated wasm assets manifest
+wwwroot/service-worker-assets.js
+
+# Local secrets
+*.local.json
+secrets.json
+appsettings.Development.json
+appsettings.Local.json
+
+# OS
+.DS_Store
+Thumbs.db

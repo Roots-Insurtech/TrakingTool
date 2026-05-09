@@ -1,0 +1,29 @@
+@page "/authentication/{action}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@attribute [AllowAnonymous]
+
+<RemoteAuthenticatorView Action="@Action">
+    <LoggingIn>
+        <div class="tt-boot">
+            <div class="tt-boot-spinner"></div>
+            <div class="tt-boot-text">Reindirizzamento al login Microsoft…</div>
+        </div>
+    </LoggingIn>
+    <CompletingLoggingIn>
+        <div class="tt-boot">
+            <div class="tt-boot-spinner"></div>
+            <div class="tt-boot-text">Completamento accesso…</div>
+        </div>
+    </CompletingLoggingIn>
+    <LogOut>
+        <div class="tt-boot">
+            <div class="tt-boot-spinner"></div>
+            <div class="tt-boot-text">Disconnessione…</div>
+        </div>
+    </LogOut>
+</RemoteAuthenticatorView>
+
+@code {
+    [Parameter] public string? Action { get; set; }
+}

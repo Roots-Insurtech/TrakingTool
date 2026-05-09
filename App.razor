@@ -1,0 +1,42 @@
+<CascadingAuthenticationState>
+    <MudThemeProvider Theme="@TrakingTool.Theme.NotionDarkTheme.Theme" IsDarkMode="true" />
+    <MudPopoverProvider />
+    <MudDialogProvider />
+    <MudSnackbarProvider />
+
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated != true)
+                    {
+                        <RedirectToLogin />
+                    }
+                    else
+                    {
+                        <MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+                            <MudText Typo="Typo.h5">Accesso non autorizzato</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-2">L'utente non ha i permessi richiesti.</MudText>
+                        </MudContainer>
+                    }
+                </NotAuthorized>
+                <Authorizing>
+                    <div class="tt-boot">
+                        <div class="tt-boot-spinner"></div>
+                        <div class="tt-boot-text">Verifica accesso…</div>
+                    </div>
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Non trovato</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+                    <MudText Typo="Typo.h4">Pagina non trovata</MudText>
+                    <MudText Typo="Typo.body1" Class="mud-text-secondary mt-2">L'indirizzo richiesto non esiste.</MudText>
+                </MudContainer>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

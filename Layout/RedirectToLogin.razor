@@ -1,0 +1,19 @@
+@inject NavigationManager Nav
+
+<div class="tt-boot">
+    <div class="tt-boot-spinner"></div>
+    <div class="tt-boot-text">Apertura login…</div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        var options = new InteractiveRequestOptions
+        {
+            Interaction = InteractionType.SignIn,
+            ReturnUrl = Nav.Uri
+        };
+        options.TryAddAdditionalParameter("prompt", "select_account");
+        Nav.NavigateToLogin("authentication/login", options);
+    }
+}

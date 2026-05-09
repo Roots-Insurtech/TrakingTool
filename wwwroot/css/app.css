@@ -1,0 +1,137 @@
+:root {
+    color-scheme: dark;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #191919;
+    color: #e6e6e6;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+    background: rgba(233, 163, 86, 0.35);
+    color: #fff;
+}
+
+/* Scrollbar Notion-ish */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a3a transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #2e2e2e; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #3f3f3f; border: 2px solid transparent; background-clip: content-box; }
+
+/* AppBar / drawer rifiniture */
+.tt-appbar {
+    border-bottom: 1px solid #222 !important;
+    backdrop-filter: saturate(140%) blur(8px);
+}
+.tt-appbar-title {
+    letter-spacing: 0.2px;
+    font-weight: 600;
+}
+.tt-drawer {
+    border-right: 1px solid #222 !important;
+}
+.tt-drawer .mud-nav-link {
+    border-radius: 6px;
+    margin: 2px 8px;
+    padding: 6px 10px;
+    min-height: 34px;
+}
+.tt-drawer .mud-nav-link:hover {
+    background: rgba(255,255,255,0.04);
+}
+.tt-drawer .mud-nav-link.active {
+    background: rgba(233,163,86,0.10);
+    color: #f1c08e !important;
+}
+.tt-drawer .mud-nav-link.active .mud-nav-link-icon {
+    color: #f1c08e !important;
+}
+
+/* Main content density Notion-like */
+.tt-main {
+    background: #191919;
+}
+
+/* Card rifinita */
+.tt-card {
+    background: #1c1c1c !important;
+    border: 1px solid #262626 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}
+.tt-card:hover {
+    border-color: #303030 !important;
+}
+
+/* Stato chip colors */
+.tt-stato { font-weight: 500; letter-spacing: 0.1px; }
+.tt-stato-aperta     { background: rgba(122,166,255,0.14) !important; color: #9ec0ff !important; }
+.tt-stato-incorso    { background: rgba(233,163,86,0.16) !important; color: #f1c08e !important; }
+.tt-stato-sospesa    { background: rgba(180,142,173,0.16) !important; color: #d2b6ce !important; }
+.tt-stato-chiusa     { background: rgba(155,155,155,0.14) !important; color: #c4c4c4 !important; }
+.tt-stato-rilasciata { background: rgba(123,191,107,0.16) !important; color: #a4d99a !important; }
+.tt-stato-annullata  { background: rgba(224,108,117,0.14) !important; color: #ee9aa1 !important; }
+
+/* Boot screen */
+.tt-boot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 14px;
+}
+.tt-boot-spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #2a2a2a;
+    border-top-color: #e9a356;
+    animation: tt-spin 0.8s linear infinite;
+}
+.tt-boot-text {
+    color: #9b9b9b;
+    font-size: 13px;
+    letter-spacing: 0.4px;
+}
+@keyframes tt-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Errore Blazor */
+#blazor-error-ui {
+    color-scheme: dark;
+    background: #2a1f1f;
+    color: #ee9aa1;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.4);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+    font-size: 0.85rem;
+}
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+#blazor-error-ui a { color: #f1c08e; margin-left: 8px; }
+
+/* Validation */
+.valid.modified:not([type=checkbox]) { outline: none; }
+.invalid { outline: 1px solid #e06c75; }
+.validation-message { color: #ee9aa1; font-size: 0.8rem; }

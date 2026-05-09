@@ -1,0 +1,21 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/_framework/*",
+      "/_content/*",
+      "/css/*",
+      "/lib/*",
+      "/*.{css,js,png,jpg,jpeg,svg,ico,webmanifest,wasm,dll,pdb,dat,blat,br,gz,json}"
+    ]
+  },
+  "mimeTypes": {
+    ".dll": "application/octet-stream",
+    ".dat": "application/octet-stream",
+    ".webmanifest": "application/manifest+json",
+    ".wasm": "application/wasm"
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-cache"
+  }
+}

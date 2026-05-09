@@ -1,0 +1,138 @@
+@page "/recap"
+@inject IEntryRepository Repo
+
+<PageTitle>TrakingTool — Recap</PageTitle>
+
+<MudStack Spacing="4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h4">Recap mensile</MudText>
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+            <MudIconButton Icon="@Icons.Material.Outlined.ChevronLeft" OnClick="PrevMonth" />
+            <MudText Typo="Typo.subtitle1" Style="min-width: 160px; text-align:center;">@_riferimento.ToString("MMMM yyyy")</MudText>
+            <MudIconButton Icon="@Icons.Material.Outlined.ChevronRight" OnClick="NextMonth" />
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="ThisMonth">Oggi</MudButton>
+        </MudStack>
+    </MudStack>
+
+    <MudGrid>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Totale attività</MudText>
+                <MudText Typo="Typo.h5" Class="mt-1">@_meseEntries.Count</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Clienti</MudText>
+                <MudText Typo="Typo.h5" Class="mt-1">@_meseEntries.Select(e => e.Cliente).Distinct().Count()</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Aree</MudText>
+                <MudText Typo="Typo.h5" Class="mt-1">@_meseEntries.Select(e => $"{e.Cliente}/{e.Area}").Distinct().Count()</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Rilasciate</MudText>
+                <MudText Typo="Typo.h5" Class="mt-1">@_meseEntries.Count(e => e.Stato == Stato.Rilasciata)</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="tt-card pa-4">
+        @if (_meseEntries.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary py-4">Nessuna attività in questo mese.</MudText>
+        }
+        else
+        {
+            @foreach (var clientGroup in _meseEntries.GroupBy(e => e.Cliente).OrderBy(g => g.Key))
+            {
+                <MudExpansionPanels MultiExpansion="true" Elevation="0" Class="tt-recap-cliente">
+                    <MudExpansionPanel Expanded="true">
+                        <TitleContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                <MudIcon Icon="@Icons.Material.Outlined.Business" Size="Size.Small" />
+                                <MudText Typo="Typo.subtitle1">@clientGroup.Key</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@clientGroup.Count() attività</MudText>
+                            </MudStack>
+                        </TitleContent>
+                        <ChildContent>
+                            @foreach (var areaGroup in clientGroup.GroupBy(e => e.Area).OrderBy(g => g.Key))
+                            {
+                                <MudPaper Elevation="0" Class="pa-3 mb-2" Style="background:#1f1f1f; border:1px solid #262626; border-radius:6px;">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="mb-2">
+                                        <MudIcon Icon="@Icons.Material.Outlined.Apps" Size="Size.Small" />
+                                        <MudText Typo="Typo.subtitle2">@areaGroup.Key</MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@areaGroup.Count() attività</MudText>
+                                    </MudStack>
+                                    <MudStack Spacing="1">
+                                        @foreach (var e in areaGroup.OrderBy(x => x.DataRegistrazione))
+                                        {
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                                <MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip>
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="min-width: 60px;">@e.DataRegistrazione.ToString("dd/MM")</MudText>
+                                                <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 720px;">@FirstLine(e.Descrizione)</MudText>
+                                                <MudSpacer />
+                                                @if (e.DataRilascio.HasValue)
+                                                {
+                                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">→ @e.DataRilascio.Value.ToString("dd/MM")</MudText>
+                                                }
+                                            </MudStack>
+                                        }
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </ChildContent>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+        }
+    </MudPaper>
+</MudStack>
+
+@code {
+    private DateTime _riferimento = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private List<Entry> _all = new();
+    private List<Entry> _meseEntries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _all = (await Repo.GetAllAsync()).ToList();
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _meseEntries = _all
+            .Where(e => e.DataRegistrazione.Year == _riferimento.Year && e.DataRegistrazione.Month == _riferimento.Month)
+            .ToList();
+    }
+
+    private void PrevMonth()
+    {
+        _riferimento = _riferimento.AddMonths(-1);
+        ApplyFilter();
+    }
+
+    private void NextMonth()
+    {
+        _riferimento = _riferimento.AddMonths(1);
+        ApplyFilter();
+    }
+
+    private void ThisMonth()
+    {
+        _riferimento = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        ApplyFilter();
+    }
+
+    private static string FirstLine(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+        var nl = s.IndexOf('\n');
+        return nl > 0 ? s[..nl] : s;
+    }
+}

@@ -1,0 +1,52 @@
+@inject NavigationManager Nav
+
+<AuthorizeView>
+    <Authorized>
+        <MudMenu Icon="@Icons.Material.Outlined.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+            <MudMenuItem Disabled="true">
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.body2">@(context.User.Identity?.Name ?? "—")</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@(GetEmail(context))</MudText>
+                </MudStack>
+            </MudMenuItem>
+            <MudDivider />
+            <MudMenuItem Icon="@Icons.Material.Outlined.SwitchAccount" OnClick="ChangeAccount">Cambia account</MudMenuItem>
+            <MudMenuItem Icon="@Icons.Material.Outlined.Logout" OnClick="BeginLogout">Esci</MudMenuItem>
+        </MudMenu>
+    </Authorized>
+    <NotAuthorized>
+        <MudButton Color="Color.Inherit" Variant="Variant.Text" OnClick="BeginLogin">Accedi</MudButton>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private void BeginLogin()
+    {
+        var options = new InteractiveRequestOptions
+        {
+            Interaction = InteractionType.SignIn,
+            ReturnUrl = Nav.Uri
+        };
+        options.TryAddAdditionalParameter("prompt", "select_account");
+        Nav.NavigateToLogin("authentication/login", options);
+    }
+
+    private void BeginLogout() => Nav.NavigateToLogout("authentication/logout");
+
+    private void ChangeAccount()
+    {
+        // Esci: dopo il logout l'utente atterra sulla home, che richiede auth
+        // e rimanda al login. RedirectToLogin invoca MSAL con prompt=select_account,
+        // quindi viene mostrato il selettore di account.
+        Nav.NavigateToLogout("authentication/logout");
+    }
+
+    private static string GetEmail(AuthenticationState ctx)
+    {
+        var user = ctx.User;
+        return user.FindFirst("preferred_username")?.Value
+            ?? user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? user.FindFirst("email")?.Value
+            ?? string.Empty;
+    }
+}

@@ -1,0 +1,99 @@
+@page "/"
+@inject IEntryRepository Repo
+@inject NavigationManager Nav
+
+<PageTitle>TrakingTool — Dashboard</PageTitle>
+
+<MudStack Spacing="6">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <div>
+            <MudText Typo="Typo.h4">Dashboard</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">@_oggi.ToString("dddd d MMMM yyyy")</MudText>
+        </div>
+        <MudButton StartIcon="@Icons.Material.Outlined.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Nav.NavigateTo("entries?new=1"))">
+            Nuova attività
+        </MudButton>
+    </MudStack>
+
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Aperte</MudText>
+                <MudText Typo="Typo.h4" Class="mt-1">@_stats.Aperte</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">In corso</MudText>
+                <MudText Typo="Typo.h4" Class="mt-1">@_stats.InCorso</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Mese corrente</MudText>
+                <MudText Typo="Typo.h4" Class="mt-1">@_stats.MeseCorrente</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="tt-card pa-4">
+                <MudText Typo="Typo.overline" Class="mud-text-secondary">Totale</MudText>
+                <MudText Typo="Typo.h4" Class="mt-1">@_stats.Totale</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="tt-card pa-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+            <MudText Typo="Typo.h6">Ultime attività</MudText>
+            <MudButton Size="Size.Small" Variant="Variant.Text" EndIcon="@Icons.Material.Outlined.ArrowForward" OnClick="@(() => Nav.NavigateTo("entries"))">Vedi tutte</MudButton>
+        </MudStack>
+        @if (_recenti.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">Nessuna attività registrata. Inizia con "Nuova attività".</MudText>
+        }
+        else
+        {
+            <MudList T="Entry" Dense="true" Class="pa-0">
+                @foreach (var e in _recenti)
+                {
+                    <MudListItem T="Entry" OnClick="@(() => Nav.NavigateTo($"entries?id={e.Id}"))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                            <MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip>
+                            <MudText Typo="Typo.body2" Style="min-width: 140px;" Class="mud-text-secondary">@e.Cliente</MudText>
+                            <MudText Typo="Typo.body2" Style="min-width: 160px;">@e.Area</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary text-truncate" Style="flex:1; max-width: 480px;">@FirstLine(e.Descrizione)</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@e.DataRegistrazione.ToString("dd/MM")</MudText>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </MudPaper>
+</MudStack>
+
+@code {
+    private DateTime _oggi = DateTime.Today;
+    private List<Entry> _recenti = new();
+    private Stats _stats = new();
+
+    private record struct Stats(int Aperte, int InCorso, int MeseCorrente, int Totale);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var all = (await Repo.GetAllAsync()).ToList();
+        _stats = new Stats(
+            Aperte: all.Count(e => e.Stato == Stato.Aperta),
+            InCorso: all.Count(e => e.Stato == Stato.InCorso),
+            MeseCorrente: all.Count(e => e.DataRegistrazione.Year == _oggi.Year && e.DataRegistrazione.Month == _oggi.Month),
+            Totale: all.Count
+        );
+        _recenti = all.OrderByDescending(e => e.DataRegistrazione).Take(8).ToList();
+    }
+
+    private static string FirstLine(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+        var nl = s.IndexOf('\n');
+        return nl > 0 ? s[..nl] : s;
+    }
+}
