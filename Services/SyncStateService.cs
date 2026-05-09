@@ -48,4 +48,19 @@ public sealed class SyncStateService
     }
 
     public void NotifyDataChanged() => DataChanged?.Invoke();
+
+    /// <summary>
+    /// Costruisce il messaggio per lo snackbar dopo una save: differenzia "salvato e sincronizzato",
+    /// "salvato in locale (offline)" e "salvato ma sync fallita".
+    /// </summary>
+    public string GetSaveResultMessage(string baseMessage)
+    {
+        return Status switch
+        {
+            SyncStatus.Offline => $"{baseMessage} in locale. Sync al ritorno online.",
+            SyncStatus.Error   => $"{baseMessage} in locale. Errore sync: {LastError}",
+            _ when PendingCount > 0 => $"{baseMessage} ({PendingCount} in coda)",
+            _ => $"{baseMessage} e sincronizzato."
+        };
+    }
 }

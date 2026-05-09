@@ -59,6 +59,20 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
     /// <summary>Forza un drain + refresh (chiamato dall'icona di sync nell'AppBar).</summary>
     public Task SyncNowAsync() => DrainAndRefreshAsync();
 
+    /// <summary>
+    /// Svuota la cache locale e la coda pending, poi ricarica tutto da OneDrive.
+    /// Da usare dal pulsante "Pulisci cache" in Settings quando i dati locali divergono o sembrano corrotti.
+    /// </summary>
+    public async Task ResetLocalAndReloadAsync()
+    {
+        await _local.ClearAsync();
+        await _pending.ClearAsync();
+        await UpdatePendingCountAsync();
+        await RefreshAllFromRemoteAsync();
+        _state.NotifySynced();
+        _state.NotifyDataChanged();
+    }
+
     // ---------- Read (stale-while-revalidate) ----------
 
     public async Task<IReadOnlyList<Entry>> GetAllAsync()

@@ -98,4 +98,12 @@ public sealed class LocalEntryRepository : IEntryRepository
         };
         await _storage.SetItemAsync(Key(year), file);
     }
+
+    /// <summary>Rimuove tutte le entry cachate (uno per anno) dal LocalStorage.</summary>
+    public async Task ClearAsync()
+    {
+        var keys = await _storage.KeysAsync();
+        foreach (var k in keys.Where(k => k.StartsWith(KeyPrefix, StringComparison.Ordinal)).ToList())
+            await _storage.RemoveItemAsync(k);
+    }
 }

@@ -3,6 +3,7 @@
 @inject IDialogService Dialog
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject SyncStateService SyncState
 
 <PageTitle>TrakingTool — Attività</PageTitle>
 
@@ -141,7 +142,8 @@
         if (result is not null && !result.Canceled && result.Data is Entry saved)
         {
             await Repo.SaveAsync(saved);
-            Snackbar.Add(isNew ? "Attività creata." : "Modifiche salvate.", Severity.Success);
+            var msg = SyncState.GetSaveResultMessage(isNew ? "Attività creata" : "Modifiche salvate");
+            Snackbar.Add(msg, SeverityFromState());
             await ReloadAsync();
         }
     }
@@ -163,10 +165,17 @@
         if (confirm == true)
         {
             await Repo.DeleteAsync(entry.Id);
-            Snackbar.Add("Attività eliminata.", Severity.Normal);
+            Snackbar.Add(SyncState.GetSaveResultMessage("Attività eliminata"), SeverityFromState());
             await ReloadAsync();
         }
     }
+
+    private Severity SeverityFromState() => SyncState.Status switch
+    {
+        SyncStatus.Offline => Severity.Info,
+        SyncStatus.Error   => Severity.Warning,
+        _ => Severity.Success
+    };
 
     private static string FirstLine(string s)
     {

@@ -77,4 +77,11 @@ public sealed class PendingSyncStore
         var deletes = await GetPendingDeletesAsync();
         return ids.Count + deletes.Count;
     }
+
+    /// <summary>Svuota entrambe le code (pending saves + pending deletes).</summary>
+    public async Task ClearAsync()
+    {
+        await _storage.RemoveItemAsync(PendingSyncIdsKey);
+        await _storage.RemoveItemAsync(PendingDeletesKey);
+    }
 }

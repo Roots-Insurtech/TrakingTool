@@ -1,4 +1,9 @@
 @page "/settings"
+@inject CachedEntryRepository Repo
+@inject SyncStateService SyncState
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@implements IDisposable
 
 <PageTitle>TrakingTool — Impostazioni</PageTitle>
 
@@ -6,12 +11,112 @@
     <MudText Typo="Typo.h4">Impostazioni</MudText>
 
     <MudPaper Class="tt-card pa-4">
-        <MudText Typo="Typo.h6" Class="mb-2">Account</MudText>
-        <MudText Typo="Typo.body2" Class="mud-text-secondary">L'integrazione Microsoft / OneDrive sarà configurata nel prossimo step.</MudText>
+        <MudText Typo="Typo.h6" Class="mb-2">Sincronizzazione</MudText>
+        <MudStack Spacing="3">
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
+                <MudIcon Icon="@StatusIcon" Color="@StatusColor" Size="Size.Small" />
+                <MudText Typo="Typo.body2">@StatusText</MudText>
+                <MudSpacer />
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Sync" OnClick="ForceSync" Disabled="_busy">Sincronizza ora</MudButton>
+            </MudStack>
+
+            <MudDivider />
+
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.subtitle2">Pulisci cache locale</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Svuota i dati salvati su questo dispositivo (e le eventuali modifiche in coda non ancora sincronizzate)
+                    e ricarica tutto da OneDrive. Utile se i dati locali sembrano fuori sync.
+                </MudText>
+                <div>
+                    <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.DeleteSweep" OnClick="ResetLocalAsync" Disabled="_busy">
+                        Pulisci e ricarica da OneDrive
+                    </MudButton>
+                </div>
+            </MudStack>
+        </MudStack>
     </MudPaper>
 
     <MudPaper Class="tt-card pa-4">
         <MudText Typo="Typo.h6" Class="mb-2">Storage</MudText>
-        <MudText Typo="Typo.body2" Class="mud-text-secondary">Modalità attuale: cache locale (LocalStorage). I dati sono memorizzati solo su questo dispositivo finché non viene attivato il sync OneDrive.</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            I dati sono persistenti su <strong>OneDrive</strong> (cartella applicazione dedicata: <code>App/TrakingTool</code>) con cache locale offline.
+            Schema attuale: un file JSON per anno (<code>entries-{anno}.json</code>).
+        </MudText>
     </MudPaper>
 </MudStack>
+
+@code {
+    private bool _busy;
+
+    protected override void OnInitialized() => SyncState.StateChanged += OnStateChanged;
+
+    private async void OnStateChanged() => await InvokeAsync(StateHasChanged);
+
+    private string StatusIcon => SyncState.Status switch
+    {
+        SyncStatus.Syncing => Icons.Material.Outlined.Sync,
+        SyncStatus.Offline => Icons.Material.Outlined.CloudOff,
+        SyncStatus.Error   => Icons.Material.Outlined.SyncProblem,
+        _ => Icons.Material.Outlined.CloudDone
+    };
+
+    private Color StatusColor => SyncState.Status switch
+    {
+        SyncStatus.Syncing => Color.Info,
+        SyncStatus.Offline => Color.Warning,
+        SyncStatus.Error   => Color.Error,
+        _ => Color.Success
+    };
+
+    private string StatusText => SyncState.Status switch
+    {
+        SyncStatus.Syncing => "Sincronizzazione in corso…",
+        SyncStatus.Offline => SyncState.PendingCount > 0
+            ? $"Offline — {SyncState.PendingCount} modifiche in coda"
+            : "Offline",
+        SyncStatus.Error => $"Errore: {SyncState.LastError ?? "ignoto"}"
+            + (SyncState.PendingCount > 0 ? $" — {SyncState.PendingCount} in coda" : ""),
+        _ => SyncState.LastSyncedAt.HasValue
+            ? $"Sincronizzato — ultima sync {SyncState.LastSyncedAt.Value.LocalDateTime:dd/MM HH:mm}"
+            : "Sincronizzato"
+    };
+
+    private async Task ForceSync()
+    {
+        _busy = true;
+        try
+        {
+            await Repo.SyncNowAsync();
+            Snackbar.Add("Sincronizzazione avviata.", Severity.Info);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ResetLocalAsync()
+    {
+        var confirm = await Dialog.ShowMessageBoxAsync(new MessageBoxOptions
+        {
+            Title = "Pulire la cache locale?",
+            Message = "Verranno cancellati tutti i dati salvati su questo dispositivo "
+                    + "(incluse le modifiche eventualmente non ancora sincronizzate) e ricaricati da OneDrive. Procedere?",
+            YesText = "Pulisci e ricarica",
+            CancelText = "Annulla"
+        });
+        if (confirm != true) return;
+
+        _busy = true;
+        try
+        {
+            await Repo.ResetLocalAndReloadAsync();
+            Snackbar.Add("Cache locale ripulita e dati ricaricati da OneDrive.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Errore durante la pulizia: {ex.Message}", Severity.Error);
+        }
+        finally { _busy = false; }
+    }
+
+    public void Dispose() => SyncState.StateChanged -= OnStateChanged;
+}
