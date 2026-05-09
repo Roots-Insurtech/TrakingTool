@@ -4,6 +4,8 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject SyncStateService SyncState
+@inject ILocalStorageService LocalStorage
+@implements IDisposable
 
 <PageTitle>TrakingTool — Attività</PageTitle>
 
@@ -21,29 +23,89 @@
     </MudStack>
 
     <MudPaper Class="tt-card pa-3">
-        <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
-            <MudTextField @bind-Value="_search" Placeholder="Cerca cliente, area, testo…" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Outlined.Search" Immediate="true" Style="max-width: 360px;" />
-            <MudSelect T="Stato?" @bind-Value="_statoFilter" Placeholder="Tutti gli stati" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Style="max-width: 200px;">
+        <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Cerca cliente, area, testo…"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Outlined.Search"
+                          Immediate="true"
+                          DebounceInterval="200"
+                          Style="max-width: 360px; flex: 1 1 240px;" />
+            <MudSelect T="Stato?"
+                       Value="_statoFilter"
+                       ValueChanged="OnStatoChanged"
+                       Placeholder="Tutti gli stati"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Style="max-width: 200px; flex: 1 1 160px;">
                 @foreach (var s in Enum.GetValues<Stato>())
                 {
                     <MudSelectItem T="Stato?" Value="@(s)">@s.ToLabel()</MudSelectItem>
                 }
             </MudSelect>
+            <MudSelect T="int?"
+                       Value="_yearFilter"
+                       ValueChanged="OnYearChanged"
+                       Placeholder="Tutti gli anni"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Clearable="true"
+                       Style="max-width: 160px; flex: 1 1 130px;">
+                @foreach (var y in _availableYears)
+                {
+                    <MudSelectItem T="int?" Value="@(y)">@y</MudSelectItem>
+                }
+            </MudSelect>
+            @if (!string.IsNullOrEmpty(_monthFilter))
+            {
+                <MudChip T="string"
+                         Color="Color.Primary"
+                         Size="Size.Small"
+                         OnClose="ClearMonthFilter"
+                         CloseIcon="@Icons.Material.Outlined.Close">
+                    Mese: @FormatMonthLabel(_monthFilter)
+                </MudChip>
+            }
             <MudSpacer />
             <MudText Typo="Typo.body2" Class="mud-text-secondary">@_filtered.Count / @_all.Count</MudText>
         </MudStack>
     </MudPaper>
 
     <MudPaper Class="tt-card">
-        <MudTable T="Entry" Items="_filtered" Hover="true" Dense="true" Striped="false" Breakpoint="Breakpoint.Sm" Class="pa-0" RowClass="cursor-pointer" OnRowClick="@OnRowClick">
+        <MudTable T="Entry"
+                  Items="_filtered"
+                  Hover="true"
+                  Dense="true"
+                  Striped="false"
+                  Breakpoint="Breakpoint.Sm"
+                  Class="pa-0"
+                  RowClass="cursor-pointer"
+                  OnRowClick="@OnRowClick"
+                  SortLabel="Ordina per">
             <HeaderContent>
-                <MudTh Style="width: 110px;">Stato</MudTh>
-                <MudTh>Cliente</MudTh>
-                <MudTh>Area</MudTh>
+                <MudTh Style="width: 110px;">
+                    <MudTableSortLabel SortBy="@(new Func<Entry, object>(e => (int)e.Stato))">Stato</MudTableSortLabel>
+                </MudTh>
+                <MudTh>
+                    <MudTableSortLabel SortBy="@(new Func<Entry, object>(e => e.Cliente ?? string.Empty))">Cliente</MudTableSortLabel>
+                </MudTh>
+                <MudTh>
+                    <MudTableSortLabel SortBy="@(new Func<Entry, object>(e => e.Area ?? string.Empty))">Area</MudTableSortLabel>
+                </MudTh>
                 <MudTh>Descrizione</MudTh>
-                <MudTh Style="width: 110px;">Registrata</MudTh>
-                <MudTh Style="width: 110px;">Rilasciata</MudTh>
-                <MudTh Style="width: 56px;"></MudTh>
+                <MudTh Style="width: 110px;">
+                    <MudTableSortLabel InitialDirection="SortDirection.Descending"
+                                       SortBy="@(new Func<Entry, object>(e => e.DataRegistrazione))">Registrata</MudTableSortLabel>
+                </MudTh>
+                <MudTh Style="width: 110px;">
+                    <MudTableSortLabel SortBy="@(new Func<Entry, object>(e => (object?)e.DataRilascio ?? DateOnly.MinValue))">Rilasciata</MudTableSortLabel>
+                </MudTh>
+                <MudTh Style="width: 100px;"></MudTh>
             </HeaderContent>
             <RowTemplate Context="e">
                 <MudTd><MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip></MudTd>
@@ -54,7 +116,19 @@
                 <MudTd>@(e.DataRilascio?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
                 <MudTd>
                     <span @onclick:stopPropagation="true">
-                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="@(async () => await DeleteAsync(e))" />
+                        @if (e.Stato == Stato.Aperta || e.Stato == Stato.InCorso)
+                        {
+                            <MudTooltip Text="Chiudi">
+                                <MudIconButton Icon="@Icons.Material.Outlined.Done"
+                                               Size="Size.Small"
+                                               OnClick="@(async () => await QuickCloseAsync(e))" />
+                            </MudTooltip>
+                        }
+                        <MudTooltip Text="Elimina">
+                            <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                           Size="Size.Small"
+                                           OnClick="@(async () => await DeleteAsync(e))" />
+                        </MudTooltip>
                     </span>
                 </MudTd>
             </RowTemplate>
@@ -68,39 +142,113 @@
 @code {
     [SupplyParameterFromQuery(Name = "id")] public Guid? IdQuery { get; set; }
     [SupplyParameterFromQuery(Name = "new")] public string? NewQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "stato")] public string? StatoQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "month")] public string? MonthQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "year")] public int? YearQuery { get; set; }
+
+    private const string FiltersKey = "tt-entries-filters";
 
     private List<Entry> _all = new();
     private string _search = string.Empty;
     private Stato? _statoFilter;
+    private int? _yearFilter;
+    private string? _monthFilter;
+    private bool _filtersLoaded;
+    private Guid? _lastDialogForId;
+
+    private record EntriesFilters(string Search, Stato? Stato, int? Year);
+
+    private IReadOnlyList<int> _availableYears =>
+        _all.Select(e => e.DataRegistrazione.Year).Distinct().OrderByDescending(y => y).ToList();
 
     private IReadOnlyList<Entry> _filtered =>
         _all.Where(e =>
                 (!_statoFilter.HasValue || e.Stato == _statoFilter.Value) &&
+                (!_yearFilter.HasValue || e.DataRegistrazione.Year == _yearFilter.Value) &&
+                (string.IsNullOrEmpty(_monthFilter) ||
+                    $"{e.DataRegistrazione.Year:D4}-{e.DataRegistrazione.Month:D2}" == _monthFilter) &&
                 (string.IsNullOrWhiteSpace(_search) ||
                  e.Cliente.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
                  e.Area.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
                  e.Descrizione.Contains(_search, StringComparison.OrdinalIgnoreCase)))
-            .OrderByDescending(e => e.DataRegistrazione)
-            .ThenByDescending(e => e.Id)
             .ToList();
 
     protected override async Task OnInitializedAsync()
     {
+        SyncState.DataChanged += OnDataChanged;
+        var persisted = await LocalStorage.GetItemAsync<EntriesFilters>(FiltersKey);
+        if (persisted is not null)
+        {
+            _search = persisted.Search ?? string.Empty;
+            _statoFilter = persisted.Stato;
+            _yearFilter = persisted.Year;
+        }
+        _filtersLoaded = true;
+        ApplyQueryOverrides();
         await ReloadAsync();
 
         if (NewQuery == "1")
-            await OpenCreate();
-        else if (IdQuery is { } id)
         {
+            await OpenCreate();
+        }
+        else if (IdQuery is { } id && _lastDialogForId != id)
+        {
+            _lastDialogForId = id;
             var entry = _all.FirstOrDefault(e => e.Id == id);
             if (entry is not null) await OpenEdit(entry);
         }
     }
 
+    protected override void OnParametersSet()
+    {
+        if (_filtersLoaded) ApplyQueryOverrides();
+    }
+
+    private void ApplyQueryOverrides()
+    {
+        if (!string.IsNullOrEmpty(StatoQuery) && Enum.TryParse<Stato>(StatoQuery, true, out var s))
+            _statoFilter = s;
+        if (YearQuery.HasValue) _yearFilter = YearQuery;
+        _monthFilter = string.IsNullOrEmpty(MonthQuery) ? null : MonthQuery;
+    }
+
+    private async void OnDataChanged() => await InvokeAsync(ReloadAsync);
+
     private async Task ReloadAsync()
     {
         _all = (await Repo.GetAllAsync()).ToList();
         StateHasChanged();
+    }
+
+    private async Task OnSearchChanged(string val)
+    {
+        _search = val ?? string.Empty;
+        await PersistFiltersAsync();
+    }
+
+    private async Task OnStatoChanged(Stato? val)
+    {
+        _statoFilter = val;
+        await PersistFiltersAsync();
+    }
+
+    private async Task OnYearChanged(int? val)
+    {
+        _yearFilter = val;
+        await PersistFiltersAsync();
+    }
+
+    private void ClearMonthFilter()
+    {
+        _monthFilter = null;
+        // rimuovi il query param navigando a /entries puro
+        Nav.NavigateTo("entries");
+    }
+
+    private async Task PersistFiltersAsync()
+    {
+        if (!_filtersLoaded) return;
+        await LocalStorage.SetItemAsync(FiltersKey, new EntriesFilters(_search, _statoFilter, _yearFilter));
     }
 
     private async Task OpenCreate()
@@ -111,16 +259,7 @@
 
     private async Task OpenEdit(Entry entry)
     {
-        var copy = new Entry
-        {
-            Id = entry.Id,
-            Cliente = entry.Cliente,
-            Area = entry.Area,
-            Stato = entry.Stato,
-            Descrizione = entry.Descrizione,
-            DataRegistrazione = entry.DataRegistrazione,
-            DataRilascio = entry.DataRilascio
-        };
+        var copy = CopyEntry(entry);
         await ShowDialog(copy, isNew: false);
     }
 
@@ -142,8 +281,7 @@
         if (result is not null && !result.Canceled && result.Data is Entry saved)
         {
             await Repo.SaveAsync(saved);
-            var msg = SyncState.GetSaveResultMessage(isNew ? "Attività creata" : "Modifiche salvate");
-            Snackbar.Add(msg, SeverityFromState());
+            Snackbar.Add(SyncState.GetSaveResultMessage(isNew ? "Attività creata" : "Modifiche salvate"), SeverityFromState());
             await ReloadAsync();
         }
     }
@@ -170,11 +308,33 @@
         }
     }
 
+    private async Task QuickCloseAsync(Entry e)
+    {
+        var copy = CopyEntry(e);
+        copy.Stato = Stato.Chiusa;
+        await Repo.SaveAsync(copy);
+        var label = string.IsNullOrEmpty(e.Area) ? e.Cliente : e.Area;
+        Snackbar.Add(SyncState.GetSaveResultMessage($"\"{label}\" chiusa"), SeverityFromState());
+        await ReloadAsync();
+    }
+
     private Severity SeverityFromState() => SyncState.Status switch
     {
         SyncStatus.Offline => Severity.Info,
         SyncStatus.Error   => Severity.Warning,
         _ => Severity.Success
+    };
+
+    private static Entry CopyEntry(Entry e) => new()
+    {
+        Id = e.Id,
+        Cliente = e.Cliente,
+        Area = e.Area,
+        Stato = e.Stato,
+        Descrizione = e.Descrizione,
+        DataRegistrazione = e.DataRegistrazione,
+        DataRilascio = e.DataRilascio,
+        LastModified = e.LastModified
     };
 
     private static string FirstLine(string s)
@@ -183,4 +343,14 @@
         var nl = s.IndexOf('\n');
         return nl > 0 ? s[..nl] : s;
     }
+
+    private static string FormatMonthLabel(string yyyyMM)
+    {
+        if (DateTime.TryParseExact(yyyyMM, "yyyy-MM", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var dt))
+            return dt.ToString("MMMM yyyy");
+        return yyyyMM;
+    }
+
+    public void Dispose() => SyncState.DataChanged -= OnDataChanged;
 }

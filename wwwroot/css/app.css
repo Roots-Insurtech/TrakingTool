@@ -104,6 +104,17 @@ html, body {
 .tt-card:hover {
     border-color: #303030 !important;
 }
+.tt-stat-card {
+    cursor: pointer;
+    transition: border-color 120ms ease, transform 120ms ease, background 120ms ease;
+}
+.tt-stat-card:hover {
+    border-color: rgba(233, 163, 86, 0.35) !important;
+    background: #1f1f1f !important;
+}
+.tt-stat-card:active {
+    transform: scale(0.99);
+}
 
 /* Stato chip colors */
 .tt-stato { font-weight: 500; letter-spacing: 0.1px; }

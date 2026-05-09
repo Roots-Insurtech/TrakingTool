@@ -1,3 +1,4 @@
+using System.Globalization;
 using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -5,6 +6,11 @@ using MudBlazor;
 using MudBlazor.Services;
 using TrakingTool;
 using TrakingTool.Services;
+
+// Forza la cultura italiana (formato dd/MM/yyyy, settimana lunedì→domenica).
+var itIt = new CultureInfo("it-IT");
+CultureInfo.DefaultThreadCurrentCulture = itIt;
+CultureInfo.DefaultThreadCurrentUICulture = itIt;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");

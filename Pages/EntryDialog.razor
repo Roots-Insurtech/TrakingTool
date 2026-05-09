@@ -1,10 +1,13 @@
 @inherits ComponentBase
+@inject IDialogService Dialog
 
+<div @onkeydown="OnKeyDown">
 <MudDialog>
     <DialogContent>
         <MudStack Spacing="3">
             <MudStack Row="true" Spacing="3">
-                <MudAutocomplete T="string"
+                <MudAutocomplete @ref="_clienteRef"
+                                 T="string"
                                  Label="Cliente"
                                  @bind-Value="Entry.Cliente"
                                  SearchFunc="SearchClienti"
@@ -38,16 +41,37 @@
             <MudTextField T="string" @bind-Value="Entry.Descrizione" Label="Descrizione" Variant="Variant.Outlined" Lines="6" Margin="Margin.Dense" />
 
             <MudStack Row="true" Spacing="3">
-                <MudDatePicker Label="Data registrazione" Date="@_dataRegistrazione" DateChanged="OnDataRegistrazioneChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Class="flex-grow-1" />
-                <MudDatePicker Label="Data rilascio" Date="@_dataRilascio" DateChanged="OnDataRilascioChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Class="flex-grow-1" />
+                <MudDatePicker Label="Data registrazione"
+                               Date="@_dataRegistrazione"
+                               DateChanged="OnDataRegistrazioneChanged"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Required="true"
+                               FirstDayOfWeek="DayOfWeek.Monday"
+                               DateFormat="dd/MM/yyyy"
+                               Class="flex-grow-1" />
+                <MudDatePicker Label="Data rilascio"
+                               Date="@_dataRilascio"
+                               DateChanged="OnDataRilascioChanged"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Clearable="true"
+                               FirstDayOfWeek="DayOfWeek.Monday"
+                               DateFormat="dd/MM/yyyy"
+                               Class="flex-grow-1" />
             </MudStack>
+
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Suggerimento: <strong>Ctrl + Invio</strong> per salvare.
+            </MudText>
         </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Annulla</MudButton>
+        <MudButton OnClick="CancelAsync">Annulla</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">@(IsNew ? "Crea" : "Salva")</MudButton>
     </DialogActions>
 </MudDialog>
+</div>
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
@@ -56,13 +80,37 @@
     [Parameter] public string[] ClientiSuggeriti { get; set; } = Array.Empty<string>();
     [Parameter] public string[] AreeSuggerite { get; set; } = Array.Empty<string>();
 
+    private MudAutocomplete<string>? _clienteRef;
     private DateTime? _dataRegistrazione;
     private DateTime? _dataRilascio;
+
+    // Snapshot dello stato iniziale per la conferma su Annulla
+    private string _initCliente = string.Empty;
+    private string _initArea = string.Empty;
+    private Stato _initStato;
+    private string _initDescrizione = string.Empty;
+    private DateOnly _initDataReg;
+    private DateOnly? _initDataRil;
 
     protected override void OnInitialized()
     {
         _dataRegistrazione = Entry.DataRegistrazione.ToDateTime(TimeOnly.MinValue);
         _dataRilascio = Entry.DataRilascio?.ToDateTime(TimeOnly.MinValue);
+
+        _initCliente = Entry.Cliente;
+        _initArea = Entry.Area;
+        _initStato = Entry.Stato;
+        _initDescrizione = Entry.Descrizione;
+        _initDataReg = Entry.DataRegistrazione;
+        _initDataRil = Entry.DataRilascio;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && IsNew && _clienteRef is not null)
+        {
+            try { await _clienteRef.FocusAsync(); } catch { /* ignored */ }
+        }
     }
 
     private void OnDataRegistrazioneChanged(DateTime? d)
@@ -95,5 +143,36 @@
         MudDialog.Close(DialogResult.Ok(Entry));
     }
 
-    private void Cancel() => MudDialog.Cancel();
+    private async Task CancelAsync()
+    {
+        if (IsDirty())
+        {
+            var confirm = await Dialog.ShowMessageBoxAsync(new MessageBoxOptions
+            {
+                Title = "Annullare le modifiche?",
+                Message = "Hai modifiche non salvate. Vuoi davvero chiudere e perderle?",
+                YesText = "Sì, scarta",
+                CancelText = "Continua a modificare"
+            });
+            if (confirm != true) return;
+        }
+        MudDialog.Cancel();
+    }
+
+    private bool IsDirty() =>
+        !string.Equals(_initCliente, Entry.Cliente, StringComparison.Ordinal)
+        || !string.Equals(_initArea, Entry.Area, StringComparison.Ordinal)
+        || _initStato != Entry.Stato
+        || !string.Equals(_initDescrizione, Entry.Descrizione, StringComparison.Ordinal)
+        || _initDataReg != Entry.DataRegistrazione
+        || _initDataRil != Entry.DataRilascio;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if ((e.CtrlKey || e.MetaKey) && e.Key == "Enter")
+        {
+            await Task.Yield();
+            Save();
+        }
+    }
 }
