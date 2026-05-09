@@ -71,11 +71,10 @@
                                     <MudStack Spacing="1">
                                         @foreach (var e in areaGroup.OrderBy(x => x.DataRegistrazione))
                                         {
-                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="tt-recap-row">
                                                 <MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip>
-                                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="min-width: 60px;">@e.DataRegistrazione.ToString("dd/MM")</MudText>
-                                                <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 720px;">@FirstLine(e.Descrizione)</MudText>
-                                                <MudSpacer />
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@e.DataRegistrazione.ToString("dd/MM")</MudText>
+                                                <MudText Typo="Typo.body2" Class="text-truncate tt-recap-desc">@FirstLine(e.Descrizione)</MudText>
                                                 @if (e.DataRilascio.HasValue)
                                                 {
                                                     <MudText Typo="Typo.caption" Class="mud-text-secondary">→ @e.DataRilascio.Value.ToString("dd/MM")</MudText>

@@ -116,6 +116,15 @@ html, body {
     .tt-stat-card.pa-4 {
         padding: 12px !important;
     }
+    /* Dialog: coppia di campi affiancati → impilati su mobile per non tagliare le label */
+    .tt-dialog-pair {
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+    .tt-dialog-pair > * {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
 }
 
 /* Card rifinita */
@@ -146,6 +155,28 @@ html, body {
 }
 .tt-home-list-item {
     width: 100%;
+    min-width: 0;
+}
+
+/* Utility classe troncamento singola riga (Bootstrap-style; mancava in MudBlazor 9) */
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+/* Recap: riga attività dentro l'expansion panel deve poter shrinkare. */
+.tt-recap-row {
+    min-width: 0;
+    width: 100%;
+}
+.tt-recap-row > * {
+    flex-shrink: 0;
+}
+.tt-recap-row .tt-recap-desc {
+    flex: 1 1 auto;
+    flex-shrink: 1;
     min-width: 0;
 }
 

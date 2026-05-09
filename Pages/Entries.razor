@@ -108,13 +108,13 @@
                 <MudTh Style="width: 100px;"></MudTh>
             </HeaderContent>
             <RowTemplate Context="e">
-                <MudTd><MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip></MudTd>
-                <MudTd>@e.Cliente</MudTd>
-                <MudTd>@e.Area</MudTd>
-                <MudTd Class="text-truncate" Style="max-width: 360px;">@FirstLine(e.Descrizione)</MudTd>
-                <MudTd>@e.DataRegistrazione.ToString("dd/MM/yyyy")</MudTd>
-                <MudTd>@(e.DataRilascio?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
-                <MudTd>
+                <MudTd DataLabel="Stato"><MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip></MudTd>
+                <MudTd DataLabel="Cliente">@e.Cliente</MudTd>
+                <MudTd DataLabel="Area">@e.Area</MudTd>
+                <MudTd DataLabel="Descrizione" Class="text-truncate" Style="max-width: 360px;">@FirstLine(e.Descrizione)</MudTd>
+                <MudTd DataLabel="Registrata">@e.DataRegistrazione.ToString("dd/MM/yyyy")</MudTd>
+                <MudTd DataLabel="Rilasciata">@(e.DataRilascio?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
+                <MudTd DataLabel="Azioni">
                     <span @onclick:stopPropagation="true">
                         @if (e.Stato == Stato.Aperta || e.Stato == Stato.InCorso)
                         {
