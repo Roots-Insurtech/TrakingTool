@@ -39,6 +39,32 @@ jobs:
         run: |
           sed -i 's|<base href="/" />|<base href="/TrakingTool/" />|g' publish/wwwroot/index.html
 
+      - name: Patch service worker base path
+        run: |
+          sed -i 's|const base = "/";|const base = "/TrakingTool/";|g' publish/wwwroot/service-worker.js
+
+      - name: Recompute SRI hash for patched index.html in service-worker-assets.js
+        run: |
+          python3 - <<'PY'
+          import re, hashlib, base64
+          from pathlib import Path
+
+          idx = Path('publish/wwwroot/index.html').read_bytes()
+          new_hash = 'sha256-' + base64.b64encode(hashlib.sha256(idx).digest()).decode()
+
+          manifest = Path('publish/wwwroot/service-worker-assets.js')
+          content = manifest.read_text()
+          pattern = re.compile(
+              r'(\{\s*"hash":\s*")sha256-[^"]+("\s*,\s*"url":\s*"index\.html"\s*\})',
+              re.DOTALL
+          )
+          new, n = pattern.subn(rf'\1{new_hash}\2', content)
+          if n != 1:
+              raise SystemExit(f'expected exactly 1 index.html entry in manifest, found {n}')
+          manifest.write_text(new)
+          print(f'Updated index.html SRI hash to {new_hash}')
+          PY
+
       - name: Add .nojekyll (so GitHub Pages serves _framework/_content)
         run: touch publish/wwwroot/.nojekyll
 
