@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.WebAssembly.Authentication;
 using TrakingTool.Models;
 
 namespace TrakingTool.Services;
@@ -151,10 +152,16 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
         try
         {
             _state.SetStatus(SyncStatus.Syncing);
-            await _remote.SaveAsync(entry);
+            await WithTokenRetry(() => _remote.SaveAsync(entry));
             await _pending.MarkSyncedAsync(entry.Id);
             await UpdatePendingCountAsync();
             _state.NotifySynced();
+        }
+        catch (AccessTokenNotAvailableException)
+        {
+            // MSAL non ha ancora il token: l'entry resta pending, riproveremo
+            // alla prossima azione/refresh. Niente Error rosso all'utente.
+            _state.SetStatus(SyncStatus.Idle);
         }
         catch (Exception ex)
         {
@@ -167,10 +174,14 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
         try
         {
             _state.SetStatus(SyncStatus.Syncing);
-            await _remote.DeleteAsync(id);
+            await WithTokenRetry(() => _remote.DeleteAsync(id));
             await _pending.RemoveDeleteAsync(id);
             await UpdatePendingCountAsync();
             _state.NotifySynced();
+        }
+        catch (AccessTokenNotAvailableException)
+        {
+            _state.SetStatus(SyncStatus.Idle);
         }
         catch (Exception ex)
         {
@@ -195,9 +206,14 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
                 {
                     try
                     {
-                        await _remote.SaveManyAsync(byYear);
+                        await WithTokenRetry(() => _remote.SaveManyAsync(byYear));
                         foreach (var e in byYear)
                             await _pending.MarkSyncedAsync(e.Id);
+                    }
+                    catch (AccessTokenNotAvailableException)
+                    {
+                        _state.SetStatus(SyncStatus.Idle);
+                        return;
                     }
                     catch (Exception ex)
                     {
@@ -213,8 +229,13 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
             {
                 try
                 {
-                    await _remote.DeleteAsync(pd.Id);
+                    await WithTokenRetry(() => _remote.DeleteAsync(pd.Id));
                     await _pending.RemoveDeleteAsync(pd.Id);
+                }
+                catch (AccessTokenNotAvailableException)
+                {
+                    _state.SetStatus(SyncStatus.Idle);
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -243,7 +264,7 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
         if (!await _refreshLock.WaitAsync(0)) return;
         try
         {
-            var remote = await _remote.GetAllAsync();
+            var remote = await WithTokenRetry(() => _remote.GetAllAsync());
             var byYear = remote.GroupBy(e => e.DataRegistrazione.Year);
             var anyChanged = false;
             foreach (var grp in byYear)
@@ -253,6 +274,12 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
             }
             _lastBackgroundRefresh = DateTimeOffset.UtcNow;
             if (anyChanged) _state.NotifyDataChanged();
+        }
+        catch (AccessTokenNotAvailableException)
+        {
+            // Token MSAL non ancora pronto (tipico subito dopo login redirect):
+            // nessun errore visibile, riproveremo alla prossima sync.
+            if (_state.Status != SyncStatus.Offline) _state.SetStatus(SyncStatus.Idle);
         }
         catch (Exception ex)
         {
@@ -269,10 +296,14 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
         if (!await _refreshLock.WaitAsync(0)) return;
         try
         {
-            var remote = await _remote.GetByYearAsync(year);
+            var remote = await WithTokenRetry(() => _remote.GetByYearAsync(year));
             var changed = await ApplyRemoteToYearAsync(year, remote.ToList());
             _lastBackgroundRefresh = DateTimeOffset.UtcNow;
             if (changed) _state.NotifyDataChanged();
+        }
+        catch (AccessTokenNotAvailableException)
+        {
+            if (_state.Status != SyncStatus.Offline) _state.SetStatus(SyncStatus.Idle);
         }
         catch (Exception ex)
         {
@@ -347,6 +378,32 @@ public sealed class CachedEntryRepository : IEntryRepository, IAsyncDisposable
 
     private static string Truncate(string s, int max = 200)
         => s.Length <= max ? s : s[..max] + "…";
+
+    /// <summary>
+    /// Esegue una chiamata Graph che potrebbe fallire con AccessTokenNotAvailableException
+    /// se MSAL non ha ancora completato l'acquisizione del token (tipico subito dopo
+    /// un login redirect). Riprova una volta dopo 500ms; se anche il retry fallisce,
+    /// l'eccezione viene rilanciata e gestita dal chiamante.
+    /// </summary>
+    private static async Task<T> WithTokenRetry<T>(Func<Task<T>> op)
+    {
+        try { return await op(); }
+        catch (AccessTokenNotAvailableException)
+        {
+            await Task.Delay(500);
+            return await op();
+        }
+    }
+
+    private static async Task WithTokenRetry(Func<Task> op)
+    {
+        try { await op(); return; }
+        catch (AccessTokenNotAvailableException)
+        {
+            await Task.Delay(500);
+            await op();
+        }
+    }
 
     public ValueTask DisposeAsync()
     {
