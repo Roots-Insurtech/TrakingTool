@@ -76,14 +76,15 @@
         </MudStack>
     </MudPaper>
 
-    <MudPaper Class="tt-card">
+    <MudPaper Class="tt-card" Style="overflow-x: auto; max-width: 100%;">
         <MudTable T="Entry"
                   Items="_filtered"
                   Hover="true"
                   Dense="true"
                   Striped="false"
-                  Breakpoint="Breakpoint.Sm"
+                  Breakpoint="Breakpoint.None"
                   Class="pa-0"
+                  Style="min-width: 720px;"
                   RowClass="cursor-pointer"
                   OnRowClick="@OnRowClick"
                   SortLabel="Ordina per">
