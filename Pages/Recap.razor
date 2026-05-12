@@ -1,5 +1,6 @@
 @page "/recap"
 @inject IEntryRepository Repo
+@inject EntryEditor Editor
 
 <PageTitle>TrakingTool — Recap</PageTitle>
 
@@ -71,7 +72,9 @@
                                     <MudStack Spacing="1">
                                         @foreach (var e in areaGroup.OrderBy(x => x.DataRegistrazione))
                                         {
-                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="tt-recap-row">
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="tt-recap-row tt-recap-row-clickable"
+                                                      @onclick="@(() => OpenEntry(e))"
+                                                      title="Apri attività">
                                                 <MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip>
                                                 <MudText Typo="Typo.caption" Class="mud-text-secondary">@e.DataRegistrazione.ToString("dd/MM")</MudText>
                                                 <MudText Typo="Typo.body2" Class="text-truncate tt-recap-desc">@FirstLine(e.Descrizione)</MudText>
@@ -126,6 +129,15 @@
     {
         _riferimento = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         ApplyFilter();
+    }
+
+    private async Task OpenEntry(Entry e)
+    {
+        if (await Editor.EditAsync(e, _all))
+        {
+            _all = (await Repo.GetAllAsync()).ToList();
+            ApplyFilter();
+        }
     }
 
     private static string FirstLine(string s)

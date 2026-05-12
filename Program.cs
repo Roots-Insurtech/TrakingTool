@@ -50,5 +50,7 @@ builder.Services.AddScoped<SyncStateService>();
 builder.Services.AddScoped<OnlineStatusService>();
 builder.Services.AddScoped<IEntryRepository, CachedEntryRepository>();
 builder.Services.AddScoped(sp => (CachedEntryRepository)sp.GetRequiredService<IEntryRepository>());
+builder.Services.AddScoped<ReleaseRemindersService>();
+builder.Services.AddScoped<EntryEditor>();
 
 await builder.Build().RunAsync();

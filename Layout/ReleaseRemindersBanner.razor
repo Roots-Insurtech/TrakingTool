@@ -1,0 +1,61 @@
+@using TrakingTool.Models
+@using TrakingTool.Services
+@inject ReleaseRemindersService Reminders
+@implements IDisposable
+
+@if (_items.Count > 0)
+{
+    <div class="tt-reminders" role="region" aria-label="Promemoria rilasci">
+        @foreach (var r in _items)
+        {
+            <div class="tt-reminder" @key="r.Id">
+                <MudIcon Icon="@Icons.Material.Outlined.Campaign" Size="Size.Small" Class="tt-reminder-icon" />
+                <div class="tt-reminder-text text-truncate">
+                    <strong>Rilasciare</strong> @r.Area
+                    @if (!string.IsNullOrWhiteSpace(r.Cliente))
+                    {
+                        <span class="tt-reminder-cliente"> · @r.Cliente</span>
+                    }
+                </div>
+                <MudTooltip Text="Ho capito, rimuovi">
+                    <MudIconButton Icon="@Icons.Material.Outlined.Close"
+                                   Size="Size.Small"
+                                   Class="tt-reminder-dismiss"
+                                   aria-label="Chiudi promemoria"
+                                   OnClick="@(() => DismissAsync(r.Id))" />
+                </MudTooltip>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ReleaseReminder> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Reminders.Changed += OnChanged;
+        await Reminders.EnsureLoadedAsync();
+        Refresh();
+    }
+
+    private void OnChanged()
+    {
+        InvokeAsync(() =>
+        {
+            Refresh();
+            StateHasChanged();
+        });
+    }
+
+    private void Refresh()
+    {
+        _items = Reminders.Reminders
+            .OrderByDescending(r => r.CreatedAt)
+            .ToList();
+    }
+
+    private Task DismissAsync(Guid id) => Reminders.DismissAsync(id);
+
+    public void Dispose() => Reminders.Changed -= OnChanged;
+}
