@@ -2,6 +2,9 @@
 @inject IEntryRepository Repo
 @inject NavigationManager Nav
 @inject SyncStateService SyncState
+@inject EntryEditor Editor
+@inject ReleaseRemindersService Reminders
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <PageTitle>TrakingTool — Dashboard</PageTitle>
@@ -12,7 +15,7 @@
             <MudText Typo="Typo.h4">Dashboard</MudText>
             <MudText Typo="Typo.body2" Class="mud-text-secondary">@_oggi.ToString("dddd d MMMM yyyy")</MudText>
         </div>
-        <MudButton StartIcon="@Icons.Material.Outlined.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Nav.NavigateTo("entries?new=1"))">
+        <MudButton StartIcon="@Icons.Material.Outlined.Add" Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">
             Nuova attività
         </MudButton>
     </MudStack>
@@ -50,6 +53,7 @@
 
 @code {
     private DateTime _oggi = DateTime.Today;
+    private List<Entry> _all = new();
     private List<Entry> _inCorso = new();
     private List<Entry> _aperte = new();
     private Stats _stats = new();
@@ -67,25 +71,75 @@
 
     private async Task ReloadAsync()
     {
-        var all = (await Repo.GetAllAsync()).ToList();
+        _all = (await Repo.GetAllAsync()).ToList();
         _stats = new Stats(
-            Aperte: all.Count(e => e.Stato == Stato.Aperta),
-            InCorso: all.Count(e => e.Stato == Stato.InCorso),
-            MeseCorrente: all.Count(e => e.DataRegistrazione.Year == _oggi.Year && e.DataRegistrazione.Month == _oggi.Month),
-            Totale: all.Count
+            Aperte: _all.Count(e => e.Stato == Stato.Aperta),
+            InCorso: _all.Count(e => e.Stato == Stato.InCorso),
+            MeseCorrente: _all.Count(e => e.DataRegistrazione.Year == _oggi.Year && e.DataRegistrazione.Month == _oggi.Month),
+            Totale: _all.Count
         );
-        _inCorso = all
+        _inCorso = _all
             .Where(e => e.Stato == Stato.InCorso)
             .OrderByDescending(e => e.DataRegistrazione)
             .Take(ListLimit)
             .ToList();
-        _aperte = all
+        _aperte = _all
             .Where(e => e.Stato == Stato.Aperta)
             .OrderByDescending(e => e.DataRegistrazione)
             .Take(ListLimit)
             .ToList();
         StateHasChanged();
     }
+
+    private async Task OpenCreate()
+    {
+        if (await Editor.CreateAsync(_all)) await ReloadAsync();
+    }
+
+    private async Task OpenEdit(Entry e)
+    {
+        if (await Editor.EditAsync(e, _all)) await ReloadAsync();
+    }
+
+    private async Task PromoteToInCorsoAsync(Entry e)
+    {
+        var copy = CopyEntry(e);
+        copy.Stato = Stato.InCorso;
+        await Repo.SaveAsync(copy);
+        var label = string.IsNullOrEmpty(e.Area) ? e.Cliente : e.Area;
+        Snackbar.Add(SyncState.GetSaveResultMessage($"\"{label}\" avviata"), SeverityFromState());
+        await ReloadAsync();
+    }
+
+    private async Task CloseFromHomeAsync(Entry e)
+    {
+        var copy = CopyEntry(e);
+        copy.Stato = Stato.Chiusa;
+        await Repo.SaveAsync(copy);
+        await Reminders.AddAsync(e.Cliente, e.Area, e.Id);
+        var label = string.IsNullOrEmpty(e.Area) ? e.Cliente : e.Area;
+        Snackbar.Add(SyncState.GetSaveResultMessage($"\"{label}\" chiusa"), SeverityFromState());
+        await ReloadAsync();
+    }
+
+    private Severity SeverityFromState() => SyncState.Status switch
+    {
+        SyncStatus.Offline => Severity.Info,
+        SyncStatus.Error   => Severity.Warning,
+        _ => Severity.Success
+    };
+
+    private static Entry CopyEntry(Entry e) => new()
+    {
+        Id = e.Id,
+        Cliente = e.Cliente,
+        Area = e.Area,
+        Stato = e.Stato,
+        Descrizione = e.Descrizione,
+        DataRegistrazione = e.DataRegistrazione,
+        DataRilascio = e.DataRilascio,
+        LastModified = e.LastModified
+    };
 
     private RenderFragment RenderList(string title, string subtitle, List<Entry> items, Stato stato) => __builder =>
     {
@@ -111,7 +165,7 @@
                 <MudList T="Entry" Dense="true" Class="pa-0 tt-home-list">
                     @foreach (var e in items)
                     {
-                        <MudListItem T="Entry" OnClick="@(() => Nav.NavigateTo($"entries?id={e.Id}"))">
+                        <MudListItem T="Entry" OnClick="@(() => OpenEdit(e))">
                             <MudStack Spacing="0" Class="tt-home-list-item">
                                 <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
                                     <MudText Typo="Typo.body2" Class="text-truncate" Style="flex: 1; min-width: 0;">
@@ -119,6 +173,24 @@
                                         <span class="mud-text-secondary"> · @(string.IsNullOrEmpty(e.Area) ? "—" : e.Area)</span>
                                     </MudText>
                                     <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="flex-shrink: 0;">@e.DataRegistrazione.ToString("dd/MM")</MudText>
+                                    <span @onclick:stopPropagation="true" class="tt-home-quick">
+                                        @if (stato == Stato.Aperta)
+                                        {
+                                            <MudTooltip Text="Avvia (passa in corso)">
+                                                <MudIconButton Icon="@Icons.Material.Outlined.PlayArrow"
+                                                               Size="Size.Small"
+                                                               OnClick="@(async () => await PromoteToInCorsoAsync(e))" />
+                                            </MudTooltip>
+                                        }
+                                        else if (stato == Stato.InCorso)
+                                        {
+                                            <MudTooltip Text="Chiudi">
+                                                <MudIconButton Icon="@Icons.Material.Outlined.Done"
+                                                               Size="Size.Small"
+                                                               OnClick="@(async () => await CloseFromHomeAsync(e))" />
+                                            </MudTooltip>
+                                        }
+                                    </span>
                                 </MudStack>
                                 @if (!string.IsNullOrWhiteSpace(e.Descrizione))
                                 {

@@ -5,6 +5,8 @@
 @inject NavigationManager Nav
 @inject SyncStateService SyncState
 @inject ILocalStorageService LocalStorage
+@inject EntryEditor Editor
+@inject ReleaseRemindersService Reminders
 @implements IDisposable
 
 <PageTitle>TrakingTool — Attività</PageTitle>
@@ -72,6 +74,15 @@
                 </MudChip>
             }
             <MudSpacer />
+            @if (HasActiveFilters)
+            {
+                <MudButton Size="Size.Small"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Outlined.FilterAltOff"
+                           OnClick="ResetFiltersAsync">
+                    Pulisci filtri
+                </MudButton>
+            }
             <MudText Typo="Typo.body2" Class="mud-text-secondary">@_filtered.Count / @_all.Count</MudText>
         </MudStack>
     </MudPaper>
@@ -106,7 +117,7 @@
                 <MudTh Style="width: 110px;">
                     <MudTableSortLabel SortBy="@(new Func<Entry, object>(e => (object?)e.DataRilascio ?? DateOnly.MinValue))">Rilasciata</MudTableSortLabel>
                 </MudTh>
-                <MudTh Style="width: 100px;"></MudTh>
+                <MudTh Style="width: 140px;"></MudTh>
             </HeaderContent>
             <RowTemplate Context="e">
                 <MudTd DataLabel="Stato"><MudChip T="string" Size="Size.Small" Class="@e.Stato.ToCssClass()">@e.Stato.ToLabel()</MudChip></MudTd>
@@ -117,8 +128,13 @@
                 <MudTd DataLabel="Rilasciata">@(e.DataRilascio?.ToString("dd/MM/yyyy") ?? "—")</MudTd>
                 <MudTd DataLabel="Azioni">
                     <span @onclick:stopPropagation="true">
-                        @if (e.Stato == Stato.Aperta || e.Stato == Stato.InCorso)
+                        @if (e.Stato.IsOpen())
                         {
+                            <MudTooltip Text="Rilascia (oggi)">
+                                <MudIconButton Icon="@Icons.Material.Outlined.TaskAlt"
+                                               Size="Size.Small"
+                                               OnClick="@(async () => await QuickReleaseAsync(e))" />
+                            </MudTooltip>
                             <MudTooltip Text="Chiudi">
                                 <MudIconButton Icon="@Icons.Material.Outlined.Done"
                                                Size="Size.Small"
@@ -161,6 +177,12 @@
 
     private IReadOnlyList<int> _availableYears =>
         _all.Select(e => e.DataRegistrazione.Year).Distinct().OrderByDescending(y => y).ToList();
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_search)
+        || _statoFilter.HasValue
+        || _yearFilter.HasValue
+        || !string.IsNullOrEmpty(_monthFilter);
 
     private IReadOnlyList<Entry> _filtered =>
         _all.Where(e =>
@@ -246,6 +268,17 @@
         Nav.NavigateTo("entries");
     }
 
+    private async Task ResetFiltersAsync()
+    {
+        _search = string.Empty;
+        _statoFilter = null;
+        _yearFilter = null;
+        _monthFilter = null;
+        await PersistFiltersAsync();
+        // pulisce anche eventuali query param (stato/month/year)
+        Nav.NavigateTo("entries");
+    }
+
     private async Task PersistFiltersAsync()
     {
         if (!_filtersLoaded) return;
@@ -254,37 +287,12 @@
 
     private async Task OpenCreate()
     {
-        var entry = new Entry { DataRegistrazione = DateOnly.FromDateTime(DateTime.Today) };
-        await ShowDialog(entry, isNew: true);
+        if (await Editor.CreateAsync(_all)) await ReloadAsync();
     }
 
     private async Task OpenEdit(Entry entry)
     {
-        var copy = CopyEntry(entry);
-        await ShowDialog(copy, isNew: false);
-    }
-
-    private async Task ShowDialog(Entry entry, bool isNew)
-    {
-        var clienti = _all.Select(e => e.Cliente).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToArray();
-        var aree = _all.Select(e => e.Area).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s).ToArray();
-
-        var parameters = new DialogParameters
-        {
-            ["Entry"] = entry,
-            ["IsNew"] = isNew,
-            ["ClientiSuggeriti"] = clienti,
-            ["AreeSuggerite"] = aree
-        };
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dlg = await Dialog.ShowAsync<EntryDialog>(isNew ? "Nuova attività" : "Modifica attività", parameters, options);
-        var result = await dlg.Result;
-        if (result is not null && !result.Canceled && result.Data is Entry saved)
-        {
-            await Repo.SaveAsync(saved);
-            Snackbar.Add(SyncState.GetSaveResultMessage(isNew ? "Attività creata" : "Modifiche salvate"), SeverityFromState());
-            await ReloadAsync();
-        }
+        if (await Editor.EditAsync(entry, _all)) await ReloadAsync();
     }
 
     private async Task OnRowClick(TableRowClickEventArgs<Entry> args)
@@ -314,8 +322,23 @@
         var copy = CopyEntry(e);
         copy.Stato = Stato.Chiusa;
         await Repo.SaveAsync(copy);
+        await Reminders.AddAsync(e.Cliente, e.Area, e.Id);
         var label = string.IsNullOrEmpty(e.Area) ? e.Cliente : e.Area;
         Snackbar.Add(SyncState.GetSaveResultMessage($"\"{label}\" chiusa"), SeverityFromState());
+        await ReloadAsync();
+    }
+
+    private async Task QuickReleaseAsync(Entry e)
+    {
+        var copy = CopyEntry(e);
+        copy.Stato = Stato.Rilasciata;
+        if (!copy.DataRilascio.HasValue)
+            copy.DataRilascio = DateOnly.FromDateTime(DateTime.Today);
+        await Repo.SaveAsync(copy);
+        // se l'attività rilasciata era ancora "ricordata" come da rilasciare, pulisci il promemoria.
+        await Reminders.DismissByAreaAsync(e.Cliente, e.Area);
+        var label = string.IsNullOrEmpty(e.Area) ? e.Cliente : e.Area;
+        Snackbar.Add(SyncState.GetSaveResultMessage($"\"{label}\" rilasciata"), SeverityFromState());
         await ReloadAsync();
     }
 
